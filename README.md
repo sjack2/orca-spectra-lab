@@ -1,18 +1,18 @@
-# ORCA Electronic Spectra Lab
+# ORCA Computational Spectra Lab
 
-A modular Bash/Python workflow for computing UV-Vis absorption and electronic circular dichroism (ECD) spectra using ORCA time-dependent density functional theory (TD-DFT).  Designed for teaching and research — runs identically on a local workstation or a SLURM-managed HPC cluster.
+A modular Bash/Python workflow for computing UV-Vis absorption, electronic circular dichroism (ECD), and vibrational circular dichroism (VCD) spectra using ORCA density functional theory.  Designed for teaching and research — runs identically on a local workstation or a SLURM-managed HPC cluster.
 
-> **Accompanying article:**  _A Computational Spectroscopy Module for Teaching TD-DFT Workflows in Graduate Chemistry_ (in preparation for the _Journal of Chemical Education_).
+> **Accompanying article:**  _A Computational Spectroscopy Module for Teaching DFT-Based Spectral Workflows in Graduate Chemistry_ (in preparation for the _Journal of Chemical Education_).
 
 ---
 
 ## Features
 
-- **Six-stage pipeline** from raw XYZ geometry to publication-quality broadened spectra.
+- **Six-stage pipeline** from raw XYZ geometry to publication-quality broadened spectra, with parallel Stage 6 branches for electronic (UV-Vis/ECD) and vibrational (IR/VCD) spectroscopy.
 - **Dual execution mode** — every ORCA-calling script auto-detects whether SLURM is available.  Pass `--local` to force direct execution; omit it on a cluster and jobs are submitted via `sbatch`.
 - **Two conformer search paths** — Open Babel Confab (fast, force-field-based) or CREST (GFN2-xTB metadynamics, more thorough).
 - **Boltzmann-weighted spectral averaging** with configurable temperature and population threshold.
-- **Physically correct broadening** — Gaussian convolution in energy space (eV) with Jacobian correction for ECD, producing both PNG/PDF plots and CSV data tables.
+- **Physically correct broadening** — Gaussian convolution in energy space (eV) for electronic spectra and in wavenumber space (cm⁻¹) for vibrational spectra, with Jacobian correction for ECD.  Produces both PNG/PDF plots and CSV data tables.
 - **`--dry-run` on every script** — inspect generated ORCA inputs without running any calculations.
 
 ---
@@ -36,13 +36,20 @@ Stage 4                    Solvent-phase re-optimisation (SMD/CPCM)
   ▼
 Stage 5                    Boltzmann weighting & filtering
   │                        5-orca-boltzmann-weight.sh
-  ▼
-Stage 6                    TD-DFT excited-state calculations
-  │                        6-orca-ecd.sh
-  ▼
-Plot                       Broadened UV-Vis & ECD spectra
-                           or_ecd_uvvis_tools.py
+  │
+  ├──────────────────────────────────────────┐
+  ▼                                          ▼
+Stage 6-ecd                              Stage 6-vcd
+  TD-DFT excited-state calculations        Analytic frequency calculations
+  6-orca-ecd.sh                            6-orca-vcd.sh
+  │                                          │
+  ▼                                          ▼
+Plot                                     Plot
+  Broadened UV-Vis & ECD spectra           Broadened IR & VCD spectra
+  or_ecd_uvvis_tools.py                    or_vcd_ir_tools.py
 ```
+
+Stages 1–5 are shared.  After Boltzmann filtering, the pipeline branches: run `6-orca-ecd.sh` for electronic spectra, `6-orca-vcd.sh` for vibrational spectra, or both.
 
 ---
 
@@ -57,14 +64,14 @@ See [INSTALL.md](INSTALL.md) for detailed instructions.  In brief, you need:
 | ORCA | ≥ 5.0 | Quantum chemistry engine |
 | OpenMPI | ≥ 4.0 | Parallel execution for ORCA |
 | Open Babel | ≥ 3.0 | File conversion & Confab conformer search |
-| Python 3 | ≥ 3.8 | Plotting tool |
+| Python 3 | ≥ 3.8 | Plotting tools |
 | CREST | ≥ 2.12 | _(optional)_ GFN2-xTB conformer search |
 
 ### 2. Clone the repository
 
 ```bash
-git clone https://github.com/sjack2/orca-electronic-spectra-lab.git
-cd orca-electronic-spectra-lab
+git clone https://github.com/sjack2/orca-spectra-lab.git
+cd orca-spectra-lab
 ```
 
 ### 3. Install Python dependencies
@@ -108,13 +115,23 @@ Both `charge=0 mult=1` (key=value) and `0 1` (bare integers) are accepted.  If n
 # Stage 5: Boltzmann filter
 ./5-orca-boltzmann-weight.sh pna
 
-# Stage 6: TD-DFT on populated conformers
+# --- Electronic spectra branch ---
+# Stage 6-ecd: TD-DFT on populated conformers
 ./6-orca-ecd.sh --local --cpus 4 --method wB97X-D3 --roots 20 pna
 
-# Plot UV-Vis spectrum
+# Plot UV-Vis & ECD spectra
 python3 or_ecd_uvvis_tools.py pna/ecd \
     --bw pna/bw_results/pna_energies.dat \
-    --prefix pna_uv --xlim 200 500
+    --prefix pna_spectra --xlim 200 500
+
+# --- Vibrational spectra branch ---
+# Stage 6-vcd: Analytic frequencies on populated conformers
+./6-orca-vcd.sh --local --cpus 4 --method B3LYP --solvent water pna
+
+# Plot IR & VCD spectra
+python3 or_vcd_ir_tools.py pna/vcd/**/*.log \
+    --bw pna/bw_results/pna_energies.dat \
+    --prefix pna_vib --xlim 800 3500
 ```
 
 ### 7. Run the pipeline (HPC/SLURM example)
@@ -156,7 +173,13 @@ aspirin/
 ├── bw_results/                Stage 5  — Boltzmann weighting
 │   ├── aspirin_energies.dat   full table (CID, E, ΔE, p)
 │   └── aspirin_bw_labels.dat  conformer IDs above threshold
-└── ecd/                       Stage 6  — TD-DFT
+├── ecd/                       Stage 6-ecd — TD-DFT
+│   ├── aspirin_1/
+│   │   ├── aspirin_1.inp
+│   │   └── aspirin_1.log
+│   └── aspirin_2/
+│       └── ...
+└── vcd/                       Stage 6-vcd — Analytic frequencies
     ├── aspirin_1/
     │   ├── aspirin_1.inp
     │   └── aspirin_1.log
@@ -170,7 +193,8 @@ Starting geometries live in `pre_xyz/`:
 pre_xyz/
 ├── aspirin.xyz
 ├── pna.xyz
-└── ephedrine.xyz
+├── ephedrine.xyz
+└── methyloxirane.xyz
 ```
 
 ---
@@ -337,7 +361,33 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 **Input:** `<TAG>/bw_results/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
 **Output:** `<TAG>/ecd/<CID>/<CID>.log` (ORCA TD-DFT output with absorption and CD spectrum blocks)
 
-### or_ecd_uvvis_tools.py — Spectral Broadening & Plotting
+### 6-orca-vcd.sh — Analytic Frequency / IR + VCD Calculations
+
+```
+6-orca-vcd.sh [OPTIONS] TAG [TAG ...]
+```
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--method NAME` | `-m` | DFT functional | `B3LYP` |
+| `--basis NAME` | `-b` | Basis set(s) | `def2-TZVP def2/J` |
+| `--disp KW` | | Dispersion: `auto`, `none`, `D3BJ`, `D4` | `auto` |
+| `--solvent NAME` | | SMD solvent keyword | `water` |
+| `--max-iter N` | | SCF iteration limit | `150` |
+| `--cpus N` | `-c` | CPU cores | `4` |
+| `--grid N` | `-g` | DEFGRID level (1–3) | `3` |
+| `--mem-per-cpu MB` | | Memory per core (MB) | `2048` |
+| `--orca-bin PATH` | | Path to ORCA binary | _auto-detected_ |
+| `--list FILE` | | Text file of TAGs | |
+| `--local` | | Run ORCA directly (no SLURM) | |
+| `--dry-run` | | Write inputs without running | |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
+
+**Input:** `<TAG>/bw_results/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
+**Output:** `<TAG>/vcd/<CID>/<CID>.log` (ORCA AnFreq output with IR and VCD spectrum blocks)
+
+### or_ecd_uvvis_tools.py — Electronic Spectral Broadening & Plotting
 
 ```
 or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
@@ -359,26 +409,43 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 | `--scale FAC` | Multiply intensities after weighting | `1.0` |
 | `--no_title` | Suppress figure titles | _off_ |
 
-**Output:** `<prefix>_uv.png`, `<prefix>_uv.pdf`, `<prefix>_ecd.png`, `<prefix>_ecd.pdf`, `<prefix>_uv.csv`, `<prefix>_ecd.csv`
+**Output:** `<prefix>_uvvis.png`, `<prefix>_uvvis.pdf`, `<prefix>_ecd.png`, `<prefix>_ecd.pdf`, `<prefix>_uvvis.csv`, `<prefix>_ecd.csv`
+
+### or_vcd_ir_tools.py — Vibrational Spectral Broadening & Plotting
+
+```
+or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
+```
+
+`LOGS` can be individual `.log` files, glob patterns, or directories (searched recursively).
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--bw PATH` | Boltzmann weight file (`_energies.dat` from Stage 5) | _equal weights_ |
+| `--prefix STR` | Output filename prefix | `vib` |
+| `--ir_fwhm CM` | Gaussian FWHM for IR (cm⁻¹) | `10` |
+| `--vcd_fwhm CM` | Gaussian FWHM for VCD (cm⁻¹) | `6` |
+| `--xlim MIN MAX` | Wavenumber range (cm⁻¹) | _auto_ |
+| `--ir_ylim YMIN YMAX` | IR y-axis limits | _auto_ |
+| `--vcd_ylim YMIN YMAX` | VCD y-axis limits | _auto_ |
+| `--stick` | Overlay stick spectrum | _off_ |
+| `--invert_ir` | Plot IR absorption peaks downward | _off_ |
+| `--no_title` | Suppress figure titles | _off_ |
+
+**Output:** `<prefix>_ir.png`, `<prefix>_ir.pdf`, `<prefix>_vcd.png`, `<prefix>_vcd.pdf`, `<prefix>_ir.csv`, `<prefix>_vcd.csv`
 
 **Examples:**
 
 ```bash
-# Boltzmann-weighted UV-Vis for ephedrine
-python3 or_ecd_uvvis_tools.py ephedrine/ecd \
+# Boltzmann-weighted IR/VCD for methyloxirane
+python3 or_vcd_ir_tools.py methyloxirane/vcd/**/*.log \
+    --bw methyloxirane/bw_results/methyloxirane_energies.dat \
+    --prefix methyloxirane_vib --stick --xlim 800 3200
+
+# Compare computed VCD to experiment with adjusted broadening
+python3 or_vcd_ir_tools.py ephedrine/vcd/**/*.log \
     --bw ephedrine/bw_results/ephedrine_energies.dat \
-    --prefix ephedrine_spectra --xlim 190 320
-
-# Single-molecule UV-Vis with stick overlay
-python3 or_ecd_uvvis_tools.py pna/ecd \
-    --bw pna/bw_results/pna_energies.dat \
-    --prefix pna_uv --stick --xlim 200 500
-
-# Compare two functionals (separate runs, overlaid manually)
-python3 or_ecd_uvvis_tools.py pna/ecd_B3LYP \
-    --prefix pna_B3LYP --xlim 200 500
-python3 or_ecd_uvvis_tools.py pna/ecd_wB97XD3 \
-    --prefix pna_wB97XD3 --xlim 200 500
+    --prefix ephedrine_vib --vcd_fwhm 8 --ir_fwhm 12
 ```
 
 ---
@@ -391,12 +458,14 @@ The `--method` flag accepts any ORCA-recognised functional keyword.  Common choi
 
 | Functional | Type | HF Exchange | Typical Use |
 |------------|------|-------------|-------------|
-| B3LYP | Hybrid GGA | 20% | Geometry optimisation, general-purpose |
+| B3LYP | Hybrid GGA | 20% | Geometry optimisation, IR/VCD frequencies |
 | PBE0 | Hybrid GGA | 25% | Slightly better than B3LYP for many properties |
 | CAM-B3LYP | Range-separated | 19–65% | Charge-transfer excitations, ECD |
 | ωB97X-D3 | Range-separated | 22–100% | TD-DFT benchmark standard |
 | M06-2X | Hybrid meta-GGA | 54% | Main-group thermochemistry |
 | r2SCAN | Meta-GGA | 0% | Modern general-purpose |
+
+**Note on VCD:** For vibrational spectra, B3LYP is the most extensively benchmarked functional and is generally recommended as a starting point.  Range-separated hybrids (CAM-B3LYP, ωB97X-D3) offer no systematic advantage for harmonic frequencies and are significantly more expensive for analytic Hessian calculations.
 
 ### Basis Sets
 
@@ -405,7 +474,7 @@ The `--basis` flag accepts one or more ORCA basis set keywords (space-separated,
 | Basis | Quality | Typical Use |
 |-------|---------|-------------|
 | `def2-SVP def2/J` | Double-ζ | Geometry optimisation |
-| `def2-TZVP def2/J` | Triple-ζ | TD-DFT production runs |
+| `def2-TZVP def2/J` | Triple-ζ | TD-DFT and frequency production runs |
 | `def2-TZVPP def2/J` | Triple-ζ + extra polarisation | Basis set convergence checks |
 | `def2-QZVP def2/J` | Quadruple-ζ | Near-complete basis limit |
 
@@ -484,6 +553,24 @@ The `pre_xyz/` directory includes starting geometries for several test molecules
 - `phenylethan1ol.xyz` — (S)-1-phenylethan-1-ol (α-methylbenzyl alcohol)
 - `sparteine.xyz` — (−)-sparteine (tetracyclic alkaloid, large conformer space)
 
+**Session 3 — Vibrational chiroptical spectroscopy (VCD):**
+- `methyloxirane.xyz` — (R)-methyloxirane (the canonical VCD benchmark, rigid)
+- `phenylethan1ol.xyz` — (S)-1-phenylethan-1-ol (moderate flexibility, VCD literature reference)
+
+---
+
+## Lab Sessions
+
+This workflow supports three independent teaching sessions.  Each lab is self-contained with its own handout and report template; instructors can offer them in any order or combination.
+
+| Lab | Handout | Report Template | Duration |
+|-----|---------|-----------------|----------|
+| UV-Vis Benchmarking (PNA) | `Session1_UVVis_Benchmarking_Handout` | `Student_Report_Template_UVVis_ECD` | 3 hours |
+| ECD + Conformational Averaging (Ephedrine) | `Session2_ECD_Conformational_Averaging_Handout` | `Student_Report_Template_UVVis_ECD` | 3 hours |
+| VCD/IR Spectroscopy (Methyloxirane) | `Session_VCD_IR_Handout` | `Student_Report_Template_VCD` | 3 hours |
+
+The UV-Vis and ECD labs share a report template because they both use the electronic spectra branch of the pipeline (TD-DFT → `or_ecd_uvvis_tools.py`).  The VCD lab has its own dedicated template covering vibrational-specific topics (harmonic scaling, basis set convergence of VCD signs).
+
 ---
 
 ## Troubleshooting
@@ -503,13 +590,15 @@ export ORCA_BIN=/opt/orca_6_0_1/orca
 
 **Plotting tool import errors:** Install Python dependencies: `pip install -r requirements.txt`
 
+**VCD frequency job runs slowly:** Analytic Hessian calculations scale more steeply than single-point energies.  Use `--dry-run` first to check conformer count, and reduce cores only if memory is the bottleneck.  B3LYP is recommended over range-separated hybrids for frequency calculations.
+
 ---
 
 ## Citation
 
 If you use this workflow in published research or teaching, please cite:
 
-> [Author], [Author]. A Computational Spectroscopy Module for Teaching TD-DFT Workflows in Graduate Chemistry. _J. Chem. Educ._ **2026**, _XX_, XXXX–XXXX.
+> [Author], [Author]. A Computational Spectroscopy Module for Teaching DFT-Based Spectral Workflows in Graduate Chemistry. _J. Chem. Educ._ **2026**, _XX_, XXXX–XXXX.
 
 ---
 
