@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add .gitattributes)",
+      "Bash(git rm --cached -r . --quiet)",
+      "Bash(git reset --hard HEAD)"
+    ]
+  }
+}

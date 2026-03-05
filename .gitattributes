@@ -1,0 +1,6 @@
+*.sh    text eol=lf
+*.py    text eol=lf
+*.txt   text eol=lf
+*.md    text eol=lf
+*.dat   text eol=lf
+*.xyz   text eol=lf
