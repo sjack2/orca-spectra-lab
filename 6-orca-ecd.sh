@@ -173,11 +173,12 @@ parse_cli() {
     list_file=""
     single_tag=""
     orca_bin_flag=""
+    ompi_dir_flag=""
 
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,roots:,solvent:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
+mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -196,6 +197,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
             --time)           wall=$2;           shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
+            --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
             --local)          force_local=true;  shift ;;
             --dry-run)        dry_run=true;      shift ;;
             -h|--help)        show_help ;;
@@ -255,9 +257,10 @@ EOF
 # ============================================================================
 write_slurm() {
     local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
-    local abs_workdir orca_dir
+    local abs_workdir orca_dir ompi_dir
     abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
+    ompi_dir=${ompi_dir_flag:-/shares/chem_hlw/orca/openmpi-4.1.6}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
@@ -271,8 +274,24 @@ write_slurm() {
 #SBATCH --output=${abs_workdir}/slurm-%j.out
 #SBATCH --error=${abs_workdir}/slurm-%j.err
 
-export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
+# ---- mpirun -> srun wrapper (cluster mpirun does not support -np) ----
+mkdir -p "${abs_workdir}/_bin"
+cat > "${abs_workdir}/_bin/mpirun" << 'MPIRUN'
+#!/bin/bash
+args=()
+while [[ \$# -gt 0 ]]; do
+    case "\$1" in
+        -np) args+=("-n" "\$2"); shift 2 ;;
+        *) args+=("\$1"); shift ;;
+    esac
+done
+exec srun "\${args[@]}"
+MPIRUN
+chmod +x "${abs_workdir}/_bin/mpirun"
+
+# ---- ORCA environment ----
+export PATH="${abs_workdir}/_bin:${orca_dir}:\$PATH"
+export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
 
 "${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
 EOF
