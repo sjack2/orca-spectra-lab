@@ -261,8 +261,9 @@ EOF
 # SLURM WRITER
 # ============================================================================
 write_slurm() {
-    local cid=$1 inp_file=$2 slurm_file=$3
-    local orca_dir
+    local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
+    local abs_workdir orca_dir
+    abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
 
     cat >"$slurm_file" <<EOF
@@ -273,13 +274,14 @@ write_slurm() {
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --chdir=${abs_workdir}
+#SBATCH --output=${abs_workdir}/slurm-%j.out
+#SBATCH --error=${abs_workdir}/slurm-%j.err
 
 export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:\$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
 
-"${orca_bin}" "${cid}.inp" > "${cid}.log"
+"${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
 EOF
     chmod +x "$slurm_file"
 }
@@ -305,7 +307,7 @@ process_conformer() {
 
     if [[ $exec_mode == slurm ]]; then
         local slurm_file="${dir}/${cid}.slurm"
-        write_slurm "$cid" "$inp_file" "$slurm_file"
+        write_slurm "$cid" "$inp_file" "$slurm_file" "$dir"
         (cd "$dir" && sbatch "$(basename "$slurm_file")")
     else
         log "  [${cid}] running AnFreq (VCD, solvent=${solvent})"

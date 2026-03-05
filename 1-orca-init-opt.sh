@@ -300,10 +300,11 @@ EOF
 # SLURM SCRIPT WRITER  (HPC mode only)
 # ============================================================================
 write_slurm() {
-    local slurm_file=$1 tag=$2
+    local slurm_file=$1 tag=$2 workdir=$3
 
-    # resolve the ORCA root directory for the SLURM environment block
-    local orca_dir
+    # resolve absolute working directory and ORCA root for the SLURM environment block
+    local abs_workdir orca_dir
+    abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
 
     cat >"$slurm_file" <<EOF
@@ -314,14 +315,15 @@ write_slurm() {
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --chdir=${abs_workdir}
+#SBATCH --output=${abs_workdir}/slurm-%j.out
+#SBATCH --error=${abs_workdir}/slurm-%j.err
 
 # ---- ORCA + OpenMPI environment ----
 export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:\$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
 
-"${orca_bin}" "${tag}.inp" > "${tag}.log"
+"${orca_bin}" "${abs_workdir}/${tag}.inp" > "${abs_workdir}/${tag}.log"
 EOF
     chmod +x "$slurm_file"
 }
@@ -351,7 +353,7 @@ process_molecule() {
         cat "$inp_file"
         if [[ $exec_mode == slurm ]]; then
             local slurm_file="${workdir}/${tag}.slurm"
-            write_slurm "$slurm_file" "$tag"
+            write_slurm "$slurm_file" "$tag" "$workdir"
             echo ""
             echo "--- SLURM script: ${slurm_file} ---"
             cat "$slurm_file"
@@ -366,7 +368,7 @@ process_molecule() {
     # ---- live execution ------------------------------------------------
     if [[ $exec_mode == slurm ]]; then
         local slurm_file="${workdir}/${tag}.slurm"
-        write_slurm "$slurm_file" "$tag"
+        write_slurm "$slurm_file" "$tag" "$workdir"
         log "[${tag}] submitting to SLURM (partition=${partition})"
         (cd "$workdir" && sbatch "$(basename "$slurm_file")")
     else
