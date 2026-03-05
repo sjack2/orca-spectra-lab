@@ -44,8 +44,8 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── orca_opt_conf/split_xyz/     ← input conformers (from Stage 3/3b)
-#   ├── solvent_opt/
+#   ├── 02_conf_search/split_xyz/     ← input conformers (from Stage 3/3b)
+#   ├── 03_solvent_opt/
 #   │   ├── <TAG>_001/               one directory per conformer
 #   │   │   ├── <TAG>_001.inp
 #   │   │   ├── <TAG>_001.log
@@ -81,11 +81,11 @@ DEFAULT_MAX_ITER=150
 DEFAULT_CPUS=4
 DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 
 XYZ_DIR="pre_xyz"
-CONF_SUBDIR="orca_opt_conf/split_xyz"
+CONF_SUBDIR="02_conf_search/split_xyz"
 
 # ============================================================================
 # HELPERS
@@ -181,11 +181,12 @@ parse_cli() {
     list_file=""
     single_tag=""
     orca_bin_flag=""
+    ompi_dir_flag=""
 
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,solvent:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
+mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -203,6 +204,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
             --time)           wall=$2;           shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
+            --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
             --local)          force_local=true;  shift ;;
             --dry-run)        dry_run=true;      shift ;;
             -h|--help)        show_help ;;
@@ -256,9 +258,11 @@ EOF
 # SLURM WRITER
 # ============================================================================
 write_slurm() {
-    local cid=$1 inp_file=$2 slurm_file=$3
-    local orca_dir
+    local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
+    local abs_workdir orca_dir ompi_dir
+    abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
+    ompi_dir=${ompi_dir_flag:-/shares/chem_hlw/orca/openmpi-4.1.6}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
@@ -268,13 +272,17 @@ write_slurm() {
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --chdir=${abs_workdir}
+#SBATCH --output=${abs_workdir}/slurm-%j.out
+#SBATCH --error=${abs_workdir}/slurm-%j.err
 
-export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:\$LD_LIBRARY_PATH"
+# ---- ORCA / OpenMPI environment ----
+export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
+export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
+export OPAL_PREFIX="${ompi_dir}"
+export OMPI_MCA_btl="^openib"
 
-"${orca_bin}" "${cid}.inp" > "${cid}.log"
+"${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
 EOF
     chmod +x "$slurm_file"
 }
@@ -285,7 +293,7 @@ EOF
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
 
-    local dir="${tag}/solvent_opt/${cid}"
+    local dir="${tag}/03_solvent_opt/${cid}"
     mkdir -p "$dir"
 
     local inp_file="${dir}/${cid}.inp"
@@ -300,7 +308,7 @@ process_conformer() {
 
     if [[ $exec_mode == slurm ]]; then
         local slurm_file="${dir}/${cid}.slurm"
-        write_slurm "$cid" "$inp_file" "$slurm_file"
+        write_slurm "$cid" "$inp_file" "$slurm_file" "$dir"
         (cd "$dir" && sbatch "$(basename "$slurm_file")")
     else
         log "  [${cid}] running ORCA (solvent=${solvent})"

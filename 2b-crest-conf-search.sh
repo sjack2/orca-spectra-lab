@@ -32,7 +32,7 @@
 #
 # Directory layout:
 #   <TAG>/
-#   └── orca_opt_conf/
+#   └── 02_conf_search/
 #       ├── <TAG>.xyz               copy of input geometry
 #       ├── crest_conformers.xyz    CREST output (multi-structure XYZ)
 #       ├── crest.log               CREST log file
@@ -56,7 +56,7 @@ IFS=$'\n\t'
 # ============================================================================
 DEFAULT_CPUS=4
 DEFAULT_MEM_MB=4096
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 XYZ_DIR="pre_xyz"
 
@@ -150,11 +150,11 @@ find_optimised_xyz() {
     local probe
 
     # primary: Stage 1 output
-    probe="${tag}/${tag}_orca_opt/${tag}.xyz"
+    probe="${tag}/01_gas_opt/${tag}.xyz"
     [[ -f $probe ]] && { printf '%s' "$probe"; return; }
 
-    # secondary: orca_opt_conf (if script was run before)
-    probe="${tag}/orca_opt_conf/${tag}.xyz"
+    # secondary: 02_conf_search (if script was run before)
+    probe="${tag}/02_conf_search/${tag}.xyz"
     [[ -f $probe ]] && { printf '%s' "$probe"; return; }
 
     # tertiary: pre_xyz fallback
@@ -195,7 +195,7 @@ run_worker() {
 process_tag() {
     local tag=$1 xyz_path=$2
 
-    local job_dir="${tag}/orca_opt_conf"
+    local job_dir="${tag}/02_conf_search"
     mkdir -p "$job_dir"
     cp -f "$xyz_path" "${job_dir}/${tag}.xyz"
 

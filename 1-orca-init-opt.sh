@@ -46,7 +46,7 @@
 #
 # Directory layout produced:
 #   <TAG>/
-#   └── <TAG>_orca_opt/
+#   └── 01_gas_opt/
 #       ├── <TAG>.inp          ORCA input
 #       ├── <TAG>.log          ORCA output  (after execution)
 #       ├── <TAG>.xyz          optimised geometry (ORCA writes this)
@@ -77,7 +77,7 @@ DEFAULT_MAX_ITER=300
 DEFAULT_CPUS=4
 DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 
 XYZ_DIR="pre_xyz"           # where starting geometries live
@@ -224,11 +224,12 @@ parse_cli() {
     list_file=""
     xyz_arg=""
     orca_bin_flag=""        # raw value from --orca-bin
+    ompi_dir_flag=""        # raw value from --openmpi-dir
 
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,dry-run,local,orca-bin: -- "$@") \
+mem-per-cpu:,partition:,time:,list:,dry-run,local,orca-bin:,openmpi-dir: -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -245,6 +246,7 @@ mem-per-cpu:,partition:,time:,list:,dry-run,local,orca-bin: -- "$@") \
             --time)           wall=$2;           shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
+            --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
             --local)          force_local=true;  shift ;;
             --dry-run)        dry_run=true;      shift ;;
             -h|--help)        show_help ;;
@@ -300,11 +302,13 @@ EOF
 # SLURM SCRIPT WRITER  (HPC mode only)
 # ============================================================================
 write_slurm() {
-    local slurm_file=$1 tag=$2
+    local slurm_file=$1 tag=$2 workdir=$3
 
-    # resolve the ORCA root directory for the SLURM environment block
-    local orca_dir
+    # resolve absolute working directory and ORCA root for the SLURM environment block
+    local abs_workdir orca_dir ompi_dir
+    abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
+    ompi_dir=${ompi_dir_flag:-/shares/chem_hlw/orca/openmpi-4.1.6}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
@@ -314,14 +318,17 @@ write_slurm() {
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --chdir=${abs_workdir}
+#SBATCH --output=${abs_workdir}/slurm-%j.out
+#SBATCH --error=${abs_workdir}/slurm-%j.err
 
-# ---- ORCA + OpenMPI environment ----
-export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:\$LD_LIBRARY_PATH"
+# ---- ORCA / OpenMPI environment ----
+export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
+export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
+export OPAL_PREFIX="${ompi_dir}"
+export OMPI_MCA_btl="^openib"
 
-"${orca_bin}" "${tag}.inp" > "${tag}.log"
+"${orca_bin}" "${abs_workdir}/${tag}.inp" > "${abs_workdir}/${tag}.log"
 EOF
     chmod +x "$slurm_file"
 }
@@ -332,7 +339,7 @@ EOF
 process_molecule() {
     local xyz_file=$1 tag=$2
 
-    local workdir="${tag}/${tag}_orca_opt"
+    local workdir="${tag}/01_gas_opt"
     mkdir -p "$workdir"
 
     local inp_file="${workdir}/${tag}.inp"
@@ -351,7 +358,7 @@ process_molecule() {
         cat "$inp_file"
         if [[ $exec_mode == slurm ]]; then
             local slurm_file="${workdir}/${tag}.slurm"
-            write_slurm "$slurm_file" "$tag"
+            write_slurm "$slurm_file" "$tag" "$workdir"
             echo ""
             echo "--- SLURM script: ${slurm_file} ---"
             cat "$slurm_file"
@@ -366,7 +373,7 @@ process_molecule() {
     # ---- live execution ------------------------------------------------
     if [[ $exec_mode == slurm ]]; then
         local slurm_file="${workdir}/${tag}.slurm"
-        write_slurm "$slurm_file" "$tag"
+        write_slurm "$slurm_file" "$tag" "$workdir"
         log "[${tag}] submitting to SLURM (partition=${partition})"
         (cd "$workdir" && sbatch "$(basename "$slurm_file")")
     else

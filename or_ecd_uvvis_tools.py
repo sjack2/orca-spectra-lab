@@ -114,29 +114,45 @@ def parse_orca_log(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         hdr_tokens = block[unit_idx - 1].split()
         unit_tokens = block[unit_idx].split()
 
-        energy_col = unit_tokens.index("(eV)")
-        wl_col = unit_tokens.index("(nm)")
-        inten_token = (
-            next(t for t in ("fosc(D2)", "fosc(P2)") if t in hdr_tokens)
-            if is_uv
-            else "R"
-        )
-        inten_hdr_idx = hdr_tokens.index(inten_token)
-        inten_col = inten_hdr_idx - 1
+        # ORCA ≤5 used "(eV)" energy and "X -> Y" state notation;
+        # _canonical_tokens strips those 3 tokens so column indices need
+        # no offset.  ORCA 6 uses "(cm-1)" and a bare state index, which
+        # is NOT stripped, shifting every data column right by +1.
+        if "(eV)" in unit_tokens:
+            col_offset = 0
+        elif "(cm-1)" in unit_tokens:
+            col_offset = 1
+        else:
+            i = j
+            continue
+
+        wl_col = unit_tokens.index("(nm)") + col_offset
+
+        if is_uv:
+            inten_token = next(
+                (t for t in ("fosc(D2)", "fosc(P2)", "fosc") if t in hdr_tokens),
+                None,
+            )
+        else:
+            inten_token = "R" if "R" in hdr_tokens else None
+
+        if inten_token is None:
+            i = j
+            continue
+
+        inten_col = hdr_tokens.index(inten_token) - 1 + col_offset
 
         for raw in block[unit_idx + 1 :]:
             if not raw.strip() or raw.lstrip().startswith("-"):
                 continue
             toks = _canonical_tokens(raw.split())
-            if len(toks) <= max(energy_col, wl_col, inten_col):
+            if len(toks) <= max(wl_col, inten_col):
                 continue
-            e, w, inten = (
-                _safe_float(toks[energy_col]),
-                _safe_float(toks[wl_col]),
-                _safe_float(toks[inten_col]),
-            )
-            if None in (e, w, inten):
+            w = _safe_float(toks[wl_col])
+            inten = _safe_float(toks[inten_col])
+            if None in (w, inten):
                 continue
+            e = HC_OVER_EV_NM / w  # derive energy from wavelength; avoids cm-1/eV ambiguity
             (uv_rows if is_uv else ecd_rows).append(
                 {"energy_eV": e, "wavelength_nm": w, "intensity": inten}
             )
@@ -301,7 +317,13 @@ def _cli() -> None:
         help="ORCA .log files, glob patterns, or directories (recursive).",
     )
     parser.add_argument("--bw", dest="bw_file", metavar="PATH", help="Boltzmann weight file")
-    parser.add_argument("--prefix", default="spectra", help="Prefix for all outputs")
+    parser.add_argument(
+        "--outdir",
+        metavar="TAG",
+        help="Molecule directory (e.g. pna). Outputs go to <TAG>/06_spectra/ "
+             "with prefix <TAG>/06_spectra/<TAG>. Overridden by --prefix.",
+    )
+    parser.add_argument("--prefix", default=None, help="Explicit output prefix [spectra]")
     parser.add_argument("--no_title", action="store_true", help="Suppress figure titles")
     parser.add_argument("--stick", action="store_true", help="Overlay stick spectra")
     parser.add_argument(
@@ -328,6 +350,20 @@ def _cli() -> None:
     parser.add_argument("--uv_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     parser.add_argument("--ecd_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     args = parser.parse_args()
+
+    # ------------------------------------------------------------------ #
+    #   Resolve output prefix (--outdir takes effect if --prefix absent) #
+    # ------------------------------------------------------------------ #
+    if args.prefix is None:
+        if args.outdir:
+            tag = Path(args.outdir).name
+            out_dir = Path(args.outdir) / "06_spectra"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            prefix = str(out_dir / tag)
+        else:
+            prefix = "spectra"
+    else:
+        prefix = args.prefix
 
     # ------------------------------------------------------------------ #
     #   Locate .log files                                                #
@@ -369,22 +405,22 @@ def _cli() -> None:
     uv_df = pd.concat(uv_all, ignore_index=True)
     ecd_df = pd.concat(ecd_all, ignore_index=True)
 
-    uv_df.to_csv(f"{args.prefix}_uvvis.csv", index=False)
-    ecd_df.to_csv(f"{args.prefix}_ecd.csv", index=False)
+    uv_df.to_csv(f"{prefix}_uvvis.csv", index=False)
+    ecd_df.to_csv(f"{prefix}_ecd.csv", index=False)
 
     lam_min, lam_max = (160.0, 400.0) if not args.xlim else sorted(args.xlim)
     fwhm_to_sigma = lambda f: f / (2 * np.sqrt(2 * np.log(2)))
     sigma_uv = fwhm_to_sigma(args.uv_fwhm)
     sigma_ecd = fwhm_to_sigma(args.ecd_fwhm)
-    title = None if args.no_title else args.prefix.replace("_", " ")
+    title = None if args.no_title else Path(prefix).name.replace("_", " ")
 
     _make_plot(
         uv_df,
         sigma_eV=sigma_uv,
         lam_min=lam_min,
         lam_max=lam_max,
-        outfile_png=f"{args.prefix}_uvvis.png",
-        outfile_pdf=f"{args.prefix}_uvvis.pdf",
+        outfile_png=f"{prefix}_uvvis.png",
+        outfile_pdf=f"{prefix}_uvvis.pdf",
         y_limits=tuple(args.uv_ylim) if args.uv_ylim else None,
         sticks=args.stick,
         is_ecd=False,
@@ -398,8 +434,8 @@ def _cli() -> None:
         sigma_eV=sigma_ecd,
         lam_min=lam_min,
         lam_max=lam_max,
-        outfile_png=f"{args.prefix}_ecd.png",
-        outfile_pdf=f"{args.prefix}_ecd.pdf",
+        outfile_png=f"{prefix}_ecd.png",
+        outfile_pdf=f"{prefix}_ecd.pdf",
         y_limits=tuple(args.ecd_ylim) if args.ecd_ylim else None,
         sticks=args.stick,
         is_ecd=True,

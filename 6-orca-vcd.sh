@@ -42,9 +42,9 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── bw_results/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
-#   ├── solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
-#   └── vcd/
+#   ├── 04_boltzmann/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
+#   ├── 03_solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
+#   └── 05_vcd/
 #       ├── <CID>/
 #       │   ├── <CID>.inp                  ORCA AnFreq input
 #       │   ├── <CID>.log                  ORCA output
@@ -52,7 +52,7 @@
 #       └── ...
 #
 # Post-processing:
-#   or_vcd_ir_tools.py --bw <TAG>/bw_results/<TAG>_energies.dat \
+#   or_vcd_ir_tools.py --bw <TAG>/04_boltzmann/<TAG>_energies.dat \
 #       --prefix <TAG>_vib --stick <TAG>/vcd/**/*.log
 #
 # Examples:
@@ -81,7 +81,7 @@ DEFAULT_MAX_ITER=150
 DEFAULT_CPUS=4
 DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 
 XYZ_DIR="pre_xyz"
@@ -182,11 +182,12 @@ parse_cli() {
     list_file=""
     single_tag=""
     orca_bin_flag=""
+    ompi_dir_flag=""
 
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,solvent:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
+mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -204,6 +205,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,local,dry-run -- "$@") \
             --time)           wall=$2;           shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
+            --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
             --local)          force_local=true;  shift ;;
             --dry-run)        dry_run=true;      shift ;;
             -h|--help)        show_help ;;
@@ -261,9 +263,11 @@ EOF
 # SLURM WRITER
 # ============================================================================
 write_slurm() {
-    local cid=$1 inp_file=$2 slurm_file=$3
-    local orca_dir
+    local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
+    local abs_workdir orca_dir ompi_dir
+    abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
+    ompi_dir=${ompi_dir_flag:-/shares/chem_hlw/orca/openmpi-4.1.6}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
@@ -273,13 +277,17 @@ write_slurm() {
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --chdir=${abs_workdir}
+#SBATCH --output=${abs_workdir}/slurm-%j.out
+#SBATCH --error=${abs_workdir}/slurm-%j.err
 
-export PATH="${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${orca_dir}:\$LD_LIBRARY_PATH"
+# ---- ORCA / OpenMPI environment ----
+export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
+export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
+export OPAL_PREFIX="${ompi_dir}"
+export OMPI_MCA_btl="^openib"
 
-"${orca_bin}" "${cid}.inp" > "${cid}.log"
+"${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
 EOF
     chmod +x "$slurm_file"
 }
@@ -290,7 +298,7 @@ EOF
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
 
-    local dir="${tag}/vcd/${cid}"
+    local dir="${tag}/05_vcd/${cid}"
     mkdir -p "$dir"
 
     local inp_file="${dir}/${cid}.inp"
@@ -305,7 +313,7 @@ process_conformer() {
 
     if [[ $exec_mode == slurm ]]; then
         local slurm_file="${dir}/${cid}.slurm"
-        write_slurm "$cid" "$inp_file" "$slurm_file"
+        write_slurm "$cid" "$inp_file" "$slurm_file" "$dir"
         (cd "$dir" && sbatch "$(basename "$slurm_file")")
     else
         log "  [${cid}] running AnFreq (VCD, solvent=${solvent})"
@@ -325,7 +333,7 @@ process_tag() {
     local tag=$1
 
     # find the label file from Stage 5
-    local lab_file="${tag}/bw_results/${tag}_bw_labels.dat"
+    local lab_file="${tag}/04_boltzmann/${tag}_bw_labels.dat"
     if [[ ! -f $lab_file ]]; then
         warn "[${tag}] label file not found: ${lab_file}"
         return
@@ -355,7 +363,7 @@ process_tag() {
         [[ -z $cid ]] && continue
 
         # look for the solvent-optimised geometry
-        local xyz="${tag}/solvent_opt/${cid}/${cid}.xyz"
+        local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
         if [[ ! -f $xyz ]]; then
             warn "  [${cid}] solvent-optimised XYZ not found — skipping"
             continue

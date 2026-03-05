@@ -1,0 +1,35 @@
+# ============================================================
+# ORCA pipeline — output data (cluster-only, never committed)
+# ============================================================
+
+# Per-molecule output trees (all pipeline stages)
+pna/
+ephedrine/
+methyloxirane/
+
+# Generic catch-all for any other molecule directories
+# (matches any dir that looks like a pipeline output tree)
+*/01_gas_opt/
+*/02_conf_search/
+*/03_solvent_opt/
+*/04_boltzmann/
+*/05_ecd/
+*/05_vcd/
+*/06_spectra/
+
+# Claude Code local settings (machine-specific)
+.claude/
+
+# ORCA scratch and temp files
+*.tmp
+*.gbw
+*.densities
+*.ges
+*.prop
+*.opt
+slurm-*.out
+slurm-*.err
+
+# Python cache
+__pycache__/
+*.pyc

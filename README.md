@@ -105,8 +105,9 @@ Both `charge=0 mult=1` (key=value) and `0 1` (bare integers) are accepted.  If n
 # Stage 1: Optimise geometry in vacuum
 ./1-orca-init-opt.sh --local --cpus 4 pna
 
-# Stage 2+3: Generate and split conformers (Confab path)
+# Stage 2: Generate conformers (Confab path)
 ./2-orca-conf-search.sh --ecut 5 --conf 500 pna
+# Stage 3: Split conformers into individual XYZ files
 ./3-orca-conf-split.sh pna
 
 # Stage 4: Re-optimise each conformer in solvent
@@ -117,21 +118,21 @@ Both `charge=0 mult=1` (key=value) and `0 1` (bare integers) are accepted.  If n
 
 # --- Electronic spectra branch ---
 # Stage 6-ecd: TD-DFT on populated conformers
-./6-orca-ecd.sh --local --cpus 4 --method wB97X-D3 --roots 20 pna
+./6-orca-ecd.sh --local --cpus 4 --method wB97X-D3 --roots 30 pna
 
 # Plot UV-Vis & ECD spectra
-python3 or_ecd_uvvis_tools.py pna/ecd \
-    --bw pna/bw_results/pna_energies.dat \
-    --prefix pna_spectra --xlim 200 500
+python3 or_ecd_uvvis_tools.py pna/05_ecd \
+    --bw pna/04_boltzmann/pna_energies.dat \
+    --outdir pna --xlim 200 500
 
 # --- Vibrational spectra branch ---
 # Stage 6-vcd: Analytic frequencies on populated conformers
 ./6-orca-vcd.sh --local --cpus 4 --method B3LYP --solvent water pna
 
 # Plot IR & VCD spectra
-python3 or_vcd_ir_tools.py pna/vcd/**/*.log \
-    --bw pna/bw_results/pna_energies.dat \
-    --prefix pna_vib --xlim 800 3500
+python3 or_vcd_ir_tools.py pna/05_vcd \
+    --bw pna/04_boltzmann/pna_energies.dat \
+    --outdir pna --xlim 800 3500
 ```
 
 ### 7. Run the pipeline (HPC/SLURM example)
@@ -139,7 +140,7 @@ python3 or_vcd_ir_tools.py pna/vcd/**/*.log \
 On a cluster with SLURM, simply omit `--local`.  The scripts detect `sbatch` automatically and submit jobs:
 
 ```bash
-./1-orca-init-opt.sh --cpus 8 --partition main --time 02:00:00 pna
+./1-orca-init-opt.sh --cpus 8 --partition general --time 02:00:00 pna
 # → submits SLURM job; monitor with squeue
 ```
 
@@ -151,41 +152,49 @@ Every script follows the same directory convention.  For a molecule tagged `aspi
 
 ```
 aspirin/
-├── aspirin_orca_opt/          Stage 1  — gas-phase optimisation
+├── 01_gas_opt/                Stage 1  — gas-phase optimisation
 │   ├── aspirin.inp
 │   ├── aspirin.log
 │   └── aspirin.xyz            optimised geometry
-├── orca_opt_conf/             Stage 2+3 — conformer search
-│   ├── aspirin.sdf
-│   ├── aspirin_combined.sdf
-│   ├── split_sdf/
-│   └── split_xyz/             individual conformer XYZ files
+├── 02_conf_search/            Stage 2  — conformer enumeration (Confab or CREST)
+│   ├── aspirin.xyz            copy of Stage 1 geometry
+│   ├── aspirin_combined.sdf   all conformers (Confab output)
+│   ├── split_sdf/             individual SDF files (Stage 3 writes these)
+│   └── split_xyz/             individual conformer XYZ files (Stage 3 writes these)
 │       ├── aspirin_1.xyz
 │       ├── aspirin_2.xyz
 │       └── ...
-├── solvent_opt/               Stage 4  — solvent-phase optimisation
+├── 03_solvent_opt/            Stage 4  — solvent-phase re-optimisation
 │   ├── aspirin_1/
 │   │   ├── aspirin_1.inp
 │   │   ├── aspirin_1.log
-│   │   └── aspirin_1.xyz
+│   │   └── aspirin_1.xyz      optimised geometry per conformer
 │   └── aspirin_2/
 │       └── ...
-├── bw_results/                Stage 5  — Boltzmann weighting
+├── 04_boltzmann/              Stage 5  — Boltzmann weighting
 │   ├── aspirin_energies.dat   full table (CID, E, ΔE, p)
 │   └── aspirin_bw_labels.dat  conformer IDs above threshold
-├── ecd/                       Stage 6-ecd — TD-DFT
+├── 05_ecd/                    Stage 6-ecd — TD-DFT excited states
 │   ├── aspirin_1/
 │   │   ├── aspirin_1.inp
 │   │   └── aspirin_1.log
 │   └── aspirin_2/
 │       └── ...
-└── vcd/                       Stage 6-vcd — Analytic frequencies
-    ├── aspirin_1/
-    │   ├── aspirin_1.inp
-    │   └── aspirin_1.log
-    └── aspirin_2/
-        └── ...
+├── 05_vcd/                    Stage 6-vcd — analytic frequencies
+│   ├── aspirin_1/
+│   │   ├── aspirin_1.inp
+│   │   └── aspirin_1.log
+│   └── aspirin_2/
+│       └── ...
+└── 06_spectra/                Plotting outputs
+    ├── aspirin_uvvis.png
+    ├── aspirin_ecd.png
+    ├── aspirin_ir.png
+    ├── aspirin_vcd.png
+    └── *.csv / *.pdf
 ```
+
+**Note:** Stage 2 only generates the combined SDF/XYZ ensemble.  Stage 3 (or 3b) is always required to split that output into the per-conformer XYZ files consumed by Stage 4.
 
 Starting geometries live in `pre_xyz/`:
 
@@ -223,10 +232,10 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | | Text file of TAGs (one per line) | |
 | `--local` | | Run ORCA directly (no SLURM) | |
 | `--dry-run` | | Write inputs without running | |
-| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
 
-**Output:** `<TAG>/<TAG>_orca_opt/<TAG>.xyz` (optimised geometry)
+**Output:** `<TAG>/01_gas_opt/<TAG>.xyz` (optimised geometry)
 
 ### 2-orca-conf-search.sh — Confab Conformer Search
 
@@ -241,7 +250,7 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | Text file of TAGs | |
 | `--dry-run` | Echo commands without running | |
 
-**Output:** `<TAG>/orca_opt_conf/<TAG>_combined.sdf`
+**Output:** `<TAG>/02_conf_search/<TAG>_combined.sdf`
 
 ### 2b-crest-conf-search.sh — CREST Conformer Search
 
@@ -257,10 +266,10 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--dry-run` | | Echo actions without running | |
 | `--pre-xyz` | | Also search `pre_xyz/` for input | |
 | `--mem MB` | | SLURM memory _(HPC only)_ | `4096` |
-| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall time _(HPC only)_ | `06:00:00` |
 
-**Output:** `<TAG>/orca_opt_conf/crest_conformers.xyz`
+**Output:** `<TAG>/02_conf_search/crest_conformers.xyz`
 
 ### 3-orca-conf-split.sh — Split Confab Output
 
@@ -273,8 +282,8 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | Text file of TAGs | |
 | `--dry-run` | Echo actions without running | |
 
-**Input:** `<TAG>/orca_opt_conf/<TAG>_combined.sdf`
-**Output:** `<TAG>/orca_opt_conf/split_xyz/<TAG>_N.xyz`
+**Input:** `<TAG>/02_conf_search/<TAG>_combined.sdf`
+**Output:** `<TAG>/02_conf_search/split_xyz/<TAG>_N.xyz`
 
 ### 3b-crest-conf-split.sh — Split CREST Output
 
@@ -287,8 +296,8 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | Text file of TAGs | |
 | `--dry-run` | Echo actions without running | |
 
-**Input:** `<TAG>/orca_opt_conf/crest_conformers.xyz`
-**Output:** `<TAG>/orca_opt_conf/split_xyz/<TAG>_NNN.xyz` (zero-padded)
+**Input:** `<TAG>/02_conf_search/crest_conformers.xyz`
+**Output:** `<TAG>/02_conf_search/split_xyz/<TAG>_NNN.xyz` (zero-padded)
 
 ### 4-orca-solvent-opt.sh — Solvent-Phase Re-optimisation
 
@@ -310,11 +319,11 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | | Text file of TAGs | |
 | `--local` | | Run ORCA directly (no SLURM) | |
 | `--dry-run` | | Write inputs without running | |
-| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
 
-**Input:** `<TAG>/orca_opt_conf/split_xyz/` (from Stage 3/3b)
-**Output:** `<TAG>/solvent_opt/<CID>/<CID>.xyz` (optimised geometry per conformer)
+**Input:** `<TAG>/02_conf_search/split_xyz/` (from Stage 3/3b)
+**Output:** `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (optimised geometry per conformer)
 
 ### 5-orca-boltzmann-weight.sh — Boltzmann Weighting & Filtering
 
@@ -329,10 +338,10 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | Text file of TAGs | |
 | `--dry-run` | Show what would be computed | |
 
-**Input:** `<TAG>/solvent_opt/<CID>/<CID>.log` (ORCA outputs from Stage 4)
+**Input:** `<TAG>/03_solvent_opt/<CID>/<CID>.log` (ORCA outputs from Stage 4)
 **Output:**
-- `<TAG>/bw_results/<TAG>_energies.dat` — full table: conformer ID, energy (Hartree), relative energy (kcal/mol), Boltzmann probability
-- `<TAG>/bw_results/<TAG>_bw_labels.dat` — conformer IDs above the probability cutoff
+- `<TAG>/04_boltzmann/<TAG>_energies.dat` — full table: conformer ID, energy (Hartree), relative energy (kcal/mol), Boltzmann probability
+- `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` — conformer IDs above the probability cutoff
 
 ### 6-orca-ecd.sh — TD-DFT Excited-State Calculations
 
@@ -355,11 +364,11 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | | Text file of TAGs | |
 | `--local` | | Run ORCA directly (no SLURM) | |
 | `--dry-run` | | Write inputs without running | |
-| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
 
-**Input:** `<TAG>/bw_results/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
-**Output:** `<TAG>/ecd/<CID>/<CID>.log` (ORCA TD-DFT output with absorption and CD spectrum blocks)
+**Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
+**Output:** `<TAG>/05_ecd/<CID>/<CID>.log` (ORCA TD-DFT output with absorption and CD spectrum blocks)
 
 ### 6-orca-vcd.sh — Analytic Frequency / IR + VCD Calculations
 
@@ -381,11 +390,11 @@ All scripts accept `--help` for full usage.  Flags shown with `[default]`.
 | `--list FILE` | | Text file of TAGs | |
 | `--local` | | Run ORCA directly (no SLURM) | |
 | `--dry-run` | | Write inputs without running | |
-| `--partition NAME` | | SLURM partition _(HPC only)_ | `circe` |
+| `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
 
-**Input:** `<TAG>/bw_results/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
-**Output:** `<TAG>/vcd/<CID>/<CID>.log` (ORCA AnFreq output with IR and VCD spectrum blocks)
+**Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
+**Output:** `<TAG>/05_vcd/<CID>/<CID>.log` (ORCA AnFreq output with IR and VCD spectrum blocks)
 
 ### or_ecd_uvvis_tools.py — Electronic Spectral Broadening & Plotting
 
@@ -398,7 +407,8 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--bw PATH` | Boltzmann weight file (`_energies.dat` from Stage 5) | _equal weights_ |
-| `--prefix STR` | Output filename prefix | `spectra` |
+| `--outdir TAG` | Molecule directory; outputs go to `<TAG>/06_spectra/<TAG>_*` | |
+| `--prefix STR` | Explicit output prefix (overrides `--outdir`) | `spectra` |
 | `--uv_fwhm EV` | Gaussian FWHM for UV-Vis (eV) | `0.35` |
 | `--ecd_fwhm EV` | Gaussian FWHM for ECD (eV) | `0.25` |
 | `--xlim MIN MAX` | Wavelength range (nm) | _auto_ |
@@ -409,7 +419,7 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 | `--scale FAC` | Multiply intensities after weighting | `1.0` |
 | `--no_title` | Suppress figure titles | _off_ |
 
-**Output:** `<prefix>_uvvis.png`, `<prefix>_uvvis.pdf`, `<prefix>_ecd.png`, `<prefix>_ecd.pdf`, `<prefix>_uvvis.csv`, `<prefix>_ecd.csv`
+**Output:** `<TAG>/06_spectra/<TAG>_uvvis.png/.pdf/.csv`, `<TAG>/06_spectra/<TAG>_ecd.png/.pdf/.csv`
 
 ### or_vcd_ir_tools.py — Vibrational Spectral Broadening & Plotting
 
@@ -422,7 +432,8 @@ or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--bw PATH` | Boltzmann weight file (`_energies.dat` from Stage 5) | _equal weights_ |
-| `--prefix STR` | Output filename prefix | `vib` |
+| `--outdir TAG` | Molecule directory; outputs go to `<TAG>/06_spectra/<TAG>_*` | |
+| `--prefix STR` | Explicit output prefix (overrides `--outdir`) | `vib` |
 | `--ir_fwhm CM` | Gaussian FWHM for IR (cm⁻¹) | `10` |
 | `--vcd_fwhm CM` | Gaussian FWHM for VCD (cm⁻¹) | `6` |
 | `--xlim MIN MAX` | Wavenumber range (cm⁻¹) | _auto_ |
@@ -432,20 +443,20 @@ or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
 | `--invert_ir` | Plot IR absorption peaks downward | _off_ |
 | `--no_title` | Suppress figure titles | _off_ |
 
-**Output:** `<prefix>_ir.png`, `<prefix>_ir.pdf`, `<prefix>_vcd.png`, `<prefix>_vcd.pdf`, `<prefix>_ir.csv`, `<prefix>_vcd.csv`
+**Output:** `<TAG>/06_spectra/<TAG>_ir.png/.pdf/.csv`, `<TAG>/06_spectra/<TAG>_vcd.png/.pdf/.csv`
 
 **Examples:**
 
 ```bash
 # Boltzmann-weighted IR/VCD for methyloxirane
-python3 or_vcd_ir_tools.py methyloxirane/vcd/**/*.log \
-    --bw methyloxirane/bw_results/methyloxirane_energies.dat \
-    --prefix methyloxirane_vib --stick --xlim 800 3200
+python3 or_vcd_ir_tools.py methyloxirane/05_vcd \
+    --bw methyloxirane/04_boltzmann/methyloxirane_energies.dat \
+    --outdir methyloxirane --stick --xlim 800 3200
 
 # Compare computed VCD to experiment with adjusted broadening
-python3 or_vcd_ir_tools.py ephedrine/vcd/**/*.log \
-    --bw ephedrine/bw_results/ephedrine_energies.dat \
-    --prefix ephedrine_vib --vcd_fwhm 8 --ir_fwhm 12
+python3 or_vcd_ir_tools.py ephedrine/05_vcd \
+    --bw ephedrine/04_boltzmann/ephedrine_energies.dat \
+    --outdir ephedrine --vcd_fwhm 8 --ir_fwhm 12
 ```
 
 ---

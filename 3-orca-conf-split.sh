@@ -18,7 +18,7 @@
 #   -h | --help    Show this help and exit
 #
 # Directory layout:
-#   <TAG>/orca_opt_conf/
+#   <TAG>/02_conf_search/
 #   ├── <TAG>_combined.sdf     ← input (from Stage 2)
 #   ├── split_sdf/             individual SDF files
 #   └── split_xyz/             individual XYZ files → Stage 4 input
@@ -85,16 +85,22 @@ parse_cli() {
 # ============================================================================
 find_combined_sdf() {
     local tag=$1
-    local probe="${tag}/orca_opt_conf/${tag}_combined.sdf"
+    local probe="${tag}/02_conf_search/${tag}_combined.sdf"
     [[ -f $probe ]] && printf '%s' "$probe" || printf ''
 }
 
 split_and_convert() {
     local tag=$1 sdf_file=$2
-    local base_dir="${tag}/orca_opt_conf"
+    local base_dir="${tag}/02_conf_search"
     local split_sdf="${base_dir}/split_sdf"
     local split_xyz="${base_dir}/split_xyz"
-    mkdir -p "$split_sdf" "$split_xyz"
+    mkdir -p "$split_sdf" "$split_xyz" pre_xyz
+
+    # copy reference geometry to pre_xyz/ if absent (needed for charge/mult)
+    if [[ ! -f "pre_xyz/${tag}.xyz" && -f "${base_dir}/${tag}.xyz" ]]; then
+        cp -f "${base_dir}/${tag}.xyz" "pre_xyz/"
+        log "[${tag}] copied reference geometry to pre_xyz/"
+    fi
 
     if $dry_run; then
         log "[${tag}] (dry run) would split ${sdf_file} into ${split_xyz}/"
