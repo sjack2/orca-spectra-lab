@@ -285,11 +285,12 @@ while [[ \$# -gt 0 ]]; do
         *) args+=("\$1"); shift ;;
     esac
 done
-exec srun "\${args[@]}"
+exec srun --mpi=pmi2 "\${args[@]}"
 MPIRUN
 chmod +x "${abs_workdir}/_bin/mpirun"
 
 # ---- ORCA environment ----
+export OPAL_PREFIX="${ompi_dir}"
 export PATH="${abs_workdir}/_bin:${orca_dir}:\$PATH"
 export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
 
