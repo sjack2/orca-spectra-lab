@@ -56,7 +56,7 @@ IFS=$'\n\t'
 # ============================================================================
 DEFAULT_CPUS=4
 DEFAULT_MEM_MB=4096
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 XYZ_DIR="pre_xyz"
 

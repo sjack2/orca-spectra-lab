@@ -77,7 +77,7 @@ DEFAULT_MAX_ITER=300
 DEFAULT_CPUS=4
 DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
-DEFAULT_PARTITION="circe"
+DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 
 XYZ_DIR="pre_xyz"           # where starting geometries live
@@ -322,25 +322,11 @@ write_slurm() {
 #SBATCH --output=${abs_workdir}/slurm-%j.out
 #SBATCH --error=${abs_workdir}/slurm-%j.err
 
-# ---- mpirun -> srun wrapper (cluster mpirun does not support -np) ----
-mkdir -p "${abs_workdir}/_bin"
-cat > "${abs_workdir}/_bin/mpirun" << 'MPIRUN'
-#!/bin/bash
-args=()
-while [[ \$# -gt 0 ]]; do
-    case "\$1" in
-        -np) args+=("-n" "\$2"); shift 2 ;;
-        *) args+=("\$1"); shift ;;
-    esac
-done
-exec srun --mpi=pmi2 "\${args[@]}"
-MPIRUN
-chmod +x "${abs_workdir}/_bin/mpirun"
-
-# ---- ORCA environment ----
+# ---- ORCA / OpenMPI environment ----
+export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
+export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
 export OPAL_PREFIX="${ompi_dir}"
-export PATH="${abs_workdir}/_bin:${orca_dir}:\$PATH"
-export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:${orca_dir}/lib:\$LD_LIBRARY_PATH"
+export OMPI_MCA_btl="^openib"
 
 "${orca_bin}" "${abs_workdir}/${tag}.inp" > "${abs_workdir}/${tag}.log"
 EOF
