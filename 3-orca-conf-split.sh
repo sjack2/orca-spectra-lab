@@ -94,7 +94,13 @@ split_and_convert() {
     local base_dir="${tag}/orca_opt_conf"
     local split_sdf="${base_dir}/split_sdf"
     local split_xyz="${base_dir}/split_xyz"
-    mkdir -p "$split_sdf" "$split_xyz"
+    mkdir -p "$split_sdf" "$split_xyz" pre_xyz
+
+    # copy reference geometry to pre_xyz/ if absent (needed for charge/mult)
+    if [[ ! -f "pre_xyz/${tag}.xyz" && -f "${base_dir}/${tag}.xyz" ]]; then
+        cp -f "${base_dir}/${tag}.xyz" "pre_xyz/"
+        log "[${tag}] copied reference geometry to pre_xyz/"
+    fi
 
     if $dry_run; then
         log "[${tag}] (dry run) would split ${sdf_file} into ${split_xyz}/"

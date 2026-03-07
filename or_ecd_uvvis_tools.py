@@ -114,29 +114,45 @@ def parse_orca_log(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         hdr_tokens = block[unit_idx - 1].split()
         unit_tokens = block[unit_idx].split()
 
-        energy_col = unit_tokens.index("(eV)")
-        wl_col = unit_tokens.index("(nm)")
-        inten_token = (
-            next(t for t in ("fosc(D2)", "fosc(P2)") if t in hdr_tokens)
-            if is_uv
-            else "R"
-        )
-        inten_hdr_idx = hdr_tokens.index(inten_token)
-        inten_col = inten_hdr_idx - 1
+        # ORCA ≤5 used "(eV)" energy and "X -> Y" state notation;
+        # _canonical_tokens strips those 3 tokens so column indices need
+        # no offset.  ORCA 6 uses "(cm-1)" and a bare state index, which
+        # is NOT stripped, shifting every data column right by +1.
+        if "(eV)" in unit_tokens:
+            col_offset = 0
+        elif "(cm-1)" in unit_tokens:
+            col_offset = 1
+        else:
+            i = j
+            continue
+
+        wl_col = unit_tokens.index("(nm)") + col_offset
+
+        if is_uv:
+            inten_token = next(
+                (t for t in ("fosc(D2)", "fosc(P2)", "fosc") if t in hdr_tokens),
+                None,
+            )
+        else:
+            inten_token = "R" if "R" in hdr_tokens else None
+
+        if inten_token is None:
+            i = j
+            continue
+
+        inten_col = hdr_tokens.index(inten_token) - 1 + col_offset
 
         for raw in block[unit_idx + 1 :]:
             if not raw.strip() or raw.lstrip().startswith("-"):
                 continue
             toks = _canonical_tokens(raw.split())
-            if len(toks) <= max(energy_col, wl_col, inten_col):
+            if len(toks) <= max(wl_col, inten_col):
                 continue
-            e, w, inten = (
-                _safe_float(toks[energy_col]),
-                _safe_float(toks[wl_col]),
-                _safe_float(toks[inten_col]),
-            )
-            if None in (e, w, inten):
+            w = _safe_float(toks[wl_col])
+            inten = _safe_float(toks[inten_col])
+            if None in (w, inten):
                 continue
+            e = HC_OVER_EV_NM / w  # derive energy from wavelength; avoids cm-1/eV ambiguity
             (uv_rows if is_uv else ecd_rows).append(
                 {"energy_eV": e, "wavelength_nm": w, "intensity": inten}
             )

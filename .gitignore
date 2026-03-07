@@ -1,0 +1,33 @@
+# ============================================================
+# ORCA pipeline — output data (cluster-only, never committed)
+# ============================================================
+
+# Per-molecule output trees (all pipeline stages)
+pna/
+ephedrine/
+methyloxirane/
+
+# Generic catch-all for any other molecule directories
+# (matches any dir that looks like a pipeline output tree)
+*/orca_opt_conf/
+*/solvent_opt/
+*/bw_results/
+*/ecd/
+*/vcd/
+
+# Scratch / pre-computed XYZ inputs (live on cluster only)
+pre_xyz/
+
+# ORCA scratch and temp files
+*.tmp
+*.gbw
+*.densities
+*.ges
+*.prop
+*.opt
+slurm-*.out
+slurm-*.err
+
+# Python cache
+__pycache__/
+*.pyc

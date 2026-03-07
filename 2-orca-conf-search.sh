@@ -138,6 +138,7 @@ process_tag() {
     if $dry_run; then
         log "[${tag}] (dry run) obabel -ixyz ${xyz_copy} -osdf -O ${sdf}"
         log "[${tag}] (dry run) obabel ${sdf} -O ${combined} --confab --original --conf ${conf_count} --ecutoff ${ecut_kcal}"
+        log "[${tag}] (dry run) run Stage 3 to split conformers"
         return
     fi
 
@@ -159,31 +160,9 @@ process_tag() {
         return
     fi
 
-    # split combined SDF into individual files and convert to XYZ
-    local split_sdf="${out_dir}/split_sdf"
-    local split_xyz="${out_dir}/split_xyz"
-    mkdir -p "$split_sdf" "$split_xyz"
-
-    log "[${tag}] splitting conformers"
-    obabel "$combined" -O "${split_sdf}/${tag}_".sdf -m 2>/dev/null
-
-    shopt -s nullglob
-    local sdf_files=("${split_sdf}/${tag}_"*.sdf)
-    shopt -u nullglob
-
-    local count=${#sdf_files[@]}
-    if (( count == 0 )); then
-        warn "[${tag}] no split SDF files generated"
-        return
-    fi
-
-    for s in "${sdf_files[@]}"; do
-        local base
-        base=$(basename "${s%.sdf}")
-        obabel "$s" -O "${split_xyz}/${base}.xyz" 2>/dev/null
-    done
-
-    log "[${tag}] generated ${count} conformers"
+    local count
+    count=$(grep -c '^\$\$\$\$' "$combined" 2>/dev/null || echo 0)
+    log "[${tag}] Confab generated ${count} conformer(s) → ${combined} (run Stage 3 to split)"
 }
 
 # ============================================================================
