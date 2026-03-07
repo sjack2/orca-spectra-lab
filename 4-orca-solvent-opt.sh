@@ -44,8 +44,8 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── orca_opt_conf/split_xyz/     ← input conformers (from Stage 3/3b)
-#   ├── solvent_opt/
+#   ├── 02_conf_search/split_xyz/     ← input conformers (from Stage 3/3b)
+#   ├── 03_solvent_opt/
 #   │   ├── <TAG>_001/               one directory per conformer
 #   │   │   ├── <TAG>_001.inp
 #   │   │   ├── <TAG>_001.log
@@ -85,7 +85,7 @@ DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
 
 XYZ_DIR="pre_xyz"
-CONF_SUBDIR="orca_opt_conf/split_xyz"
+CONF_SUBDIR="02_conf_search/split_xyz"
 
 # ============================================================================
 # HELPERS
@@ -293,7 +293,7 @@ EOF
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
 
-    local dir="${tag}/solvent_opt/${cid}"
+    local dir="${tag}/03_solvent_opt/${cid}"
     mkdir -p "$dir"
 
     local inp_file="${dir}/${cid}.inp"

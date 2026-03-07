@@ -28,14 +28,12 @@
 #
 # Directory layout (reads from Stage 1, writes to):
 #   <TAG>/
-#   ├── <TAG>_orca_opt/
+#   ├── 01_gas_opt/
 #   │   └── <TAG>.xyz              ← input (from Stage 1)
-#   └── orca_opt_conf/
+#   └── 02_conf_search/
 #       ├── <TAG>.xyz              copy of optimised geometry
 #       ├── <TAG>.sdf              SDF conversion
-#       ├── <TAG>_combined.sdf     all conformers in one file
-#       ├── split_sdf/             individual SDF files
-#       └── split_xyz/             individual XYZ files  → Stage 3 input
+#       └── <TAG>_combined.sdf     all conformers in one file (run Stage 3 to split)
 #
 # Examples:
 #   2-orca-conf-search.sh --ecut 10 --conf 500 ephedrine
@@ -111,7 +109,7 @@ parse_cli() {
 # Look for the optimised XYZ from Stage 1 in the expected location.
 find_optimised_xyz() {
     local tag=$1
-    local probe="${tag}/${tag}_orca_opt/${tag}.xyz"
+    local probe="${tag}/01_gas_opt/${tag}.xyz"
     if [[ -f $probe ]]; then
         printf '%s' "$probe"
     else
@@ -125,7 +123,7 @@ find_optimised_xyz() {
 process_tag() {
     local tag=$1 xyz_path=$2
 
-    local out_dir="${tag}/orca_opt_conf"
+    local out_dir="${tag}/02_conf_search"
     mkdir -p "$out_dir"
 
     # copy optimised geometry into the conformer directory
@@ -204,7 +202,7 @@ main() {
             tag=$entry
             xyz_path=$(find_optimised_xyz "$tag")
             if [[ -z $xyz_path ]]; then
-                warn "[${tag}] optimised XYZ not found in ${tag}/${tag}_orca_opt/ — skipping"
+                warn "[${tag}] optimised XYZ not found in ${tag}/01_gas_opt/ — skipping"
                 continue
             fi
         fi

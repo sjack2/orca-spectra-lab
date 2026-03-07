@@ -8,8 +8,8 @@
 #   outputs (Stage 4), computes relative energies and Boltzmann populations
 #   at a given temperature, and writes two files:
 #
-#     <TAG>/bw_results/<TAG>_energies.dat    full table sorted by probability
-#     <TAG>/bw_results/<TAG>_bw_labels.dat   conformer IDs above the cutoff
+#     <TAG>/04_boltzmann/<TAG>_energies.dat    full table sorted by probability
+#     <TAG>/04_boltzmann/<TAG>_bw_labels.dat   conformer IDs above the cutoff
 #
 #   The label file is read by Stage 6 to determine which conformers get
 #   TD-DFT calculations.
@@ -28,10 +28,10 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── solvent_opt/
+#   ├── 03_solvent_opt/
 #   │   ├── <TAG>_001/<TAG>_001.log      ← input (Stage 4 outputs)
 #   │   └── <TAG>_002/<TAG>_002.log
-#   └── bw_results/
+#   └── 04_boltzmann/
 #       ├── <TAG>_energies.dat           full table (CID E dE p)
 #       └── <TAG>_bw_labels.dat          filtered labels → Stage 6
 #
@@ -105,14 +105,14 @@ parse_cli() {
 # ============================================================================
 # ENERGY EXTRACTION
 # ============================================================================
-# Scans all .log and .out files under <TAG>/solvent_opt/ for the ORCA
+# Scans all .log and .out files under <TAG>/03_solvent_opt/ for the ORCA
 # energy string.  Outputs "conformer_id  energy_hartree" lines.
 extract_energies() {
     local tag=$1
-    local opt_dir="${tag}/solvent_opt"
+    local opt_dir="${tag}/03_solvent_opt"
 
     if [[ ! -d $opt_dir ]]; then
-        warn "[${tag}] solvent_opt/ directory not found"
+        warn "[${tag}] 03_solvent_opt/ directory not found"
         return
     fi
 
@@ -150,7 +150,7 @@ process_tag() {
         return
     fi
 
-    local out_dir="${tag}/bw_results"
+    local out_dir="${tag}/04_boltzmann"
     local dat_file="${out_dir}/${tag}_energies.dat"
     local lab_file="${out_dir}/${tag}_bw_labels.dat"
     mkdir -p "$out_dir"

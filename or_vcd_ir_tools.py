@@ -241,7 +241,13 @@ def _cli() -> None:
     )
     parser.add_argument("logs", nargs="+", help="Log files, glob patterns, or directories")
     parser.add_argument("--bw", dest="bw_file", help="Boltzmann weight file")
-    parser.add_argument("--prefix", default="vib", help="Prefix for all outputs")
+    parser.add_argument(
+        "--outdir",
+        metavar="TAG",
+        help="Molecule directory (e.g. methyloxirane). Outputs go to <TAG>/06_spectra/ "
+             "with prefix <TAG>/06_spectra/<TAG>. Overridden by --prefix.",
+    )
+    parser.add_argument("--prefix", default=None, help="Explicit output prefix [vib]")
     parser.add_argument("--stick", action="store_true", help="Overlay stick spectra")
     parser.add_argument("--invert_ir", action="store_true", help="Plot IR peaks downward")
     parser.add_argument("--ir_fwhm", type=float, default=10.0, help="IR FWHM / cm‑1")
@@ -257,6 +263,20 @@ def _cli() -> None:
     parser.add_argument("--vcd_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     parser.add_argument("--no_title", action="store_true")
     args = parser.parse_args()
+
+    # -------------------------------------------------------------- #
+    #   Resolve output prefix (--outdir takes effect if --prefix absent) #
+    # -------------------------------------------------------------- #
+    if args.prefix is None:
+        if args.outdir:
+            tag = Path(args.outdir).name
+            out_dir = Path(args.outdir) / "06_spectra"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            prefix = str(out_dir / tag)
+        else:
+            prefix = "vib"
+    else:
+        prefix = args.prefix
 
     # -------------------------------------------------------------- #
     #   Collect log paths                                            #
@@ -293,14 +313,14 @@ def _cli() -> None:
     ir_df = pd.concat(ir_all, ignore_index=True)
     vcd_df = pd.concat(vcd_all, ignore_index=True)
 
-    ir_df.to_csv(f"{args.prefix}_ir.csv", index=False)
-    vcd_df.to_csv(f"{args.prefix}_vcd.csv", index=False)
+    ir_df.to_csv(f"{prefix}_ir.csv", index=False)
+    vcd_df.to_csv(f"{prefix}_vcd.csv", index=False)
 
     nu_min, nu_max = (0.0, 4000.0) if not args.xlim else tuple(map(float, args.xlim))
     sigma_ir = _sigma_from_fwhm(args.ir_fwhm)
     sigma_vcd = _sigma_from_fwhm(args.vcd_fwhm)
 
-    base = args.prefix.replace("_", " ")
+    base = Path(prefix).name.replace("_", " ")
     title_ir = None if args.no_title else f"{base} IR Spectrum"
     title_vcd = None if args.no_title else f"{base} VCD Spectrum"
 
@@ -309,8 +329,8 @@ def _cli() -> None:
         sigma=sigma_ir,
         nu_min=nu_min,
         nu_max=nu_max,
-        png=f"{args.prefix}_ir.png",
-        pdf=f"{args.prefix}_ir.pdf",
+        png=f"{prefix}_ir.png",
+        pdf=f"{prefix}_ir.pdf",
         signed=False,
         sticks=args.stick,
         ylim=tuple(args.ir_ylim) if args.ir_ylim else None,
@@ -323,8 +343,8 @@ def _cli() -> None:
         sigma=sigma_vcd,
         nu_min=nu_min,
         nu_max=nu_max,
-        png=f"{args.prefix}_vcd.png",
-        pdf=f"{args.prefix}_vcd.pdf",
+        png=f"{prefix}_vcd.png",
+        pdf=f"{prefix}_vcd.pdf",
         signed=True,
         sticks=args.stick,
         ylim=tuple(args.vcd_ylim) if args.vcd_ylim else None,

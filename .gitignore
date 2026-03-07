@@ -9,11 +9,13 @@ methyloxirane/
 
 # Generic catch-all for any other molecule directories
 # (matches any dir that looks like a pipeline output tree)
-*/orca_opt_conf/
-*/solvent_opt/
-*/bw_results/
-*/ecd/
-*/vcd/
+*/01_gas_opt/
+*/02_conf_search/
+*/03_solvent_opt/
+*/04_boltzmann/
+*/05_ecd/
+*/05_vcd/
+*/06_spectra/
 
 # Scratch / pre-computed XYZ inputs (live on cluster only)
 pre_xyz/

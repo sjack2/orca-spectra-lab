@@ -46,7 +46,7 @@
 #
 # Directory layout produced:
 #   <TAG>/
-#   └── <TAG>_orca_opt/
+#   └── 01_gas_opt/
 #       ├── <TAG>.inp          ORCA input
 #       ├── <TAG>.log          ORCA output  (after execution)
 #       ├── <TAG>.xyz          optimised geometry (ORCA writes this)
@@ -339,7 +339,7 @@ EOF
 process_molecule() {
     local xyz_file=$1 tag=$2
 
-    local workdir="${tag}/${tag}_orca_opt"
+    local workdir="${tag}/01_gas_opt"
     mkdir -p "$workdir"
 
     local inp_file="${workdir}/${tag}.inp"

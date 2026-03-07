@@ -38,9 +38,9 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── bw_results/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
-#   ├── solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
-#   └── ecd/
+#   ├── 04_boltzmann/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
+#   ├── 03_solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
+#   └── 05_ecd/
 #       ├── <CID>/
 #       │   ├── <CID>.inp                  ORCA TD-DFT input
 #       │   ├── <CID>.log                  ORCA output
@@ -291,7 +291,7 @@ EOF
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
 
-    local dir="${tag}/ecd/${cid}"
+    local dir="${tag}/05_ecd/${cid}"
     mkdir -p "$dir"
 
     local inp_file="${dir}/${cid}.inp"
@@ -326,7 +326,7 @@ process_tag() {
     local tag=$1
 
     # find the label file from Stage 5
-    local lab_file="${tag}/bw_results/${tag}_bw_labels.dat"
+    local lab_file="${tag}/04_boltzmann/${tag}_bw_labels.dat"
     if [[ ! -f $lab_file ]]; then
         warn "[${tag}] label file not found: ${lab_file}"
         return
@@ -356,7 +356,7 @@ process_tag() {
         [[ -z $cid ]] && continue
 
         # look for the solvent-optimised geometry
-        local xyz="${tag}/solvent_opt/${cid}/${cid}.xyz"
+        local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
         if [[ ! -f $xyz ]]; then
             warn "  [${cid}] solvent-optimised XYZ not found — skipping"
             continue

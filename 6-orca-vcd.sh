@@ -42,9 +42,9 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── bw_results/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
-#   ├── solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
-#   └── vcd/
+#   ├── 04_boltzmann/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
+#   ├── 03_solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
+#   └── 05_vcd/
 #       ├── <CID>/
 #       │   ├── <CID>.inp                  ORCA AnFreq input
 #       │   ├── <CID>.log                  ORCA output
@@ -52,7 +52,7 @@
 #       └── ...
 #
 # Post-processing:
-#   or_vcd_ir_tools.py --bw <TAG>/bw_results/<TAG>_energies.dat \
+#   or_vcd_ir_tools.py --bw <TAG>/04_boltzmann/<TAG>_energies.dat \
 #       --prefix <TAG>_vib --stick <TAG>/vcd/**/*.log
 #
 # Examples:
@@ -298,7 +298,7 @@ EOF
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
 
-    local dir="${tag}/vcd/${cid}"
+    local dir="${tag}/05_vcd/${cid}"
     mkdir -p "$dir"
 
     local inp_file="${dir}/${cid}.inp"
@@ -333,7 +333,7 @@ process_tag() {
     local tag=$1
 
     # find the label file from Stage 5
-    local lab_file="${tag}/bw_results/${tag}_bw_labels.dat"
+    local lab_file="${tag}/04_boltzmann/${tag}_bw_labels.dat"
     if [[ ! -f $lab_file ]]; then
         warn "[${tag}] label file not found: ${lab_file}"
         return
@@ -363,7 +363,7 @@ process_tag() {
         [[ -z $cid ]] && continue
 
         # look for the solvent-optimised geometry
-        local xyz="${tag}/solvent_opt/${cid}/${cid}.xyz"
+        local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
         if [[ ! -f $xyz ]]; then
             warn "  [${cid}] solvent-optimised XYZ not found — skipping"
             continue

@@ -317,7 +317,13 @@ def _cli() -> None:
         help="ORCA .log files, glob patterns, or directories (recursive).",
     )
     parser.add_argument("--bw", dest="bw_file", metavar="PATH", help="Boltzmann weight file")
-    parser.add_argument("--prefix", default="spectra", help="Prefix for all outputs")
+    parser.add_argument(
+        "--outdir",
+        metavar="TAG",
+        help="Molecule directory (e.g. pna). Outputs go to <TAG>/06_spectra/ "
+             "with prefix <TAG>/06_spectra/<TAG>. Overridden by --prefix.",
+    )
+    parser.add_argument("--prefix", default=None, help="Explicit output prefix [spectra]")
     parser.add_argument("--no_title", action="store_true", help="Suppress figure titles")
     parser.add_argument("--stick", action="store_true", help="Overlay stick spectra")
     parser.add_argument(
@@ -344,6 +350,20 @@ def _cli() -> None:
     parser.add_argument("--uv_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     parser.add_argument("--ecd_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     args = parser.parse_args()
+
+    # ------------------------------------------------------------------ #
+    #   Resolve output prefix (--outdir takes effect if --prefix absent) #
+    # ------------------------------------------------------------------ #
+    if args.prefix is None:
+        if args.outdir:
+            tag = Path(args.outdir).name
+            out_dir = Path(args.outdir) / "06_spectra"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            prefix = str(out_dir / tag)
+        else:
+            prefix = "spectra"
+    else:
+        prefix = args.prefix
 
     # ------------------------------------------------------------------ #
     #   Locate .log files                                                #
@@ -385,22 +405,22 @@ def _cli() -> None:
     uv_df = pd.concat(uv_all, ignore_index=True)
     ecd_df = pd.concat(ecd_all, ignore_index=True)
 
-    uv_df.to_csv(f"{args.prefix}_uvvis.csv", index=False)
-    ecd_df.to_csv(f"{args.prefix}_ecd.csv", index=False)
+    uv_df.to_csv(f"{prefix}_uvvis.csv", index=False)
+    ecd_df.to_csv(f"{prefix}_ecd.csv", index=False)
 
     lam_min, lam_max = (160.0, 400.0) if not args.xlim else sorted(args.xlim)
     fwhm_to_sigma = lambda f: f / (2 * np.sqrt(2 * np.log(2)))
     sigma_uv = fwhm_to_sigma(args.uv_fwhm)
     sigma_ecd = fwhm_to_sigma(args.ecd_fwhm)
-    title = None if args.no_title else args.prefix.replace("_", " ")
+    title = None if args.no_title else Path(prefix).name.replace("_", " ")
 
     _make_plot(
         uv_df,
         sigma_eV=sigma_uv,
         lam_min=lam_min,
         lam_max=lam_max,
-        outfile_png=f"{args.prefix}_uvvis.png",
-        outfile_pdf=f"{args.prefix}_uvvis.pdf",
+        outfile_png=f"{prefix}_uvvis.png",
+        outfile_pdf=f"{prefix}_uvvis.pdf",
         y_limits=tuple(args.uv_ylim) if args.uv_ylim else None,
         sticks=args.stick,
         is_ecd=False,
@@ -414,8 +434,8 @@ def _cli() -> None:
         sigma_eV=sigma_ecd,
         lam_min=lam_min,
         lam_max=lam_max,
-        outfile_png=f"{args.prefix}_ecd.png",
-        outfile_pdf=f"{args.prefix}_ecd.pdf",
+        outfile_png=f"{prefix}_ecd.png",
+        outfile_pdf=f"{prefix}_ecd.pdf",
         y_limits=tuple(args.ecd_ylim) if args.ecd_ylim else None,
         sticks=args.stick,
         is_ecd=True,

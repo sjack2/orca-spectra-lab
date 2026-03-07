@@ -19,7 +19,7 @@
 #   -h | --help    Show this help and exit
 #
 # Directory layout:
-#   <TAG>/orca_opt_conf/
+#   <TAG>/02_conf_search/
 #   ├── crest_conformers.xyz       ← input (from Stage 2b)
 #   └── split_xyz/
 #       ├── <TAG>_001.xyz          individual conformers (zero-padded)
@@ -82,8 +82,8 @@ parse_cli() {
 # ============================================================================
 split_crest_xyz() {
     local tag=$1
-    local src="${tag}/orca_opt_conf/crest_conformers.xyz"
-    local outdir="${tag}/orca_opt_conf/split_xyz"
+    local src="${tag}/02_conf_search/crest_conformers.xyz"
+    local outdir="${tag}/02_conf_search/split_xyz"
 
     if [[ ! -f $src ]]; then
         warn "[${tag}] crest_conformers.xyz not found — skipping"
@@ -93,8 +93,8 @@ split_crest_xyz() {
     mkdir -p "$outdir" pre_xyz
 
     # copy reference geometry to pre_xyz/ if absent (needed for charge/mult)
-    if [[ ! -f "pre_xyz/${tag}.xyz" && -f "${tag}/orca_opt_conf/${tag}.xyz" ]]; then
-        cp -f "${tag}/orca_opt_conf/${tag}.xyz" "pre_xyz/"
+    if [[ ! -f "pre_xyz/${tag}.xyz" && -f "${tag}/02_conf_search/${tag}.xyz" ]]; then
+        cp -f "${tag}/02_conf_search/${tag}.xyz" "pre_xyz/"
     fi
 
     if $dry_run; then
