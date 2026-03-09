@@ -74,7 +74,24 @@ git clone https://github.com/sjack2/orca-spectra-lab.git
 cd orca-spectra-lab
 ```
 
-### 3. Install Python dependencies
+### 3. Check Python and install dependencies
+
+First verify that Python 3.8 or later is available:
+
+```bash
+python3 --version
+```
+
+If the command is not found or the version is below 3.8, install Python before continuing.  On an HPC cluster, the easiest approach is [Miniconda](https://docs.conda.io/en/latest/miniconda.html):
+
+```bash
+# Download and install Miniconda (Linux, x86-64)
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+# Follow the prompts, then open a new shell or run: source ~/.bashrc
+```
+
+Once Python is available, install the plotting dependencies:
 
 ```bash
 pip install -r requirements.txt
