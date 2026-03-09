@@ -1,0 +1,46 @@
+# =============================================================================
+# cluster.cfg.example — site-specific configuration for orca-spectra-lab
+# =============================================================================
+#
+# Copy this file to cluster.cfg and fill in the values for your cluster.
+#
+#   cp cluster.cfg.example cluster.cfg
+#
+# cluster.cfg is gitignored (site-specific paths should not be committed).
+# cluster.cfg.example is committed to the repo as a template.
+#
+# All variables are optional. Unset variables fall back to built-in defaults
+# or can be overridden at run time with explicit CLI flags.
+# CLI flag > cluster.cfg > built-in default.
+#
+# =============================================================================
+
+# Full path to the ORCA 6 executable.
+# Equivalent to passing --orca-bin on every invocation.
+#
+# USF CIRCE example:
+#   ORCA_BIN=/shares/chem_hlw/orca/orca_6_0_1_linux_x86-64_shared_openmpi416_avx2/orca
+#
+ORCA_BIN=
+
+# Root directory of the OpenMPI installation that ORCA was compiled against.
+# Used to set PATH and LD_LIBRARY_PATH inside generated SLURM job scripts.
+# Equivalent to passing --openmpi-dir on every invocation.
+#
+# USF CIRCE example:
+#   OMPI_DIR=/shares/chem_hlw/orca/openmpi-4.1.6
+#
+OMPI_DIR=
+
+# Default SLURM partition for job submission.
+# Equivalent to passing --partition on every invocation.
+#
+# USF CIRCE:   general
+# Other sites: gpu, short, compute, ...
+#
+CLUSTER_PARTITION=general
+
+# Default SLURM wall-clock time limit (HH:MM:SS).
+# Equivalent to passing --time on every invocation.
+#
+CLUSTER_WALL=06:00:00

@@ -61,7 +61,7 @@ See [INSTALL.md](INSTALL.md) for detailed instructions.  In brief, you need:
 
 | Software | Version | Purpose |
 |----------|---------|---------|
-| ORCA | ≥ 5.0 | Quantum chemistry engine |
+| ORCA | 6.0+ | Quantum chemistry engine |
 | OpenMPI | ≥ 4.0 | Parallel execution for ORCA |
 | Open Babel | ≥ 3.0 | File conversion & Confab conformer search |
 | Python 3 | ≥ 3.8 | Plotting tools |
@@ -86,7 +86,26 @@ pip install -r requirements.txt
 chmod +x *.sh
 ```
 
-### 5. Set up your molecule
+### 5. Configure for your cluster (HPC users)
+
+Copy the provided template and fill in the paths for your site.  This file is read automatically by every ORCA-calling script — you will not need to pass `--orca-bin` or `--partition` on every invocation.
+
+```bash
+cp cluster.cfg.example cluster.cfg
+```
+
+Then edit `cluster.cfg` with your site's values, for example:
+
+```bash
+ORCA_BIN=/shares/chem_hlw/orca/orca_6_0_1_linux_x86-64_shared_openmpi416_avx2/orca
+OMPI_DIR=/shares/chem_hlw/orca/openmpi-4.1.6
+CLUSTER_PARTITION=general
+CLUSTER_WALL=06:00:00
+```
+
+`cluster.cfg` is gitignored — site-specific paths are never committed to the repository.  The template `cluster.cfg.example` documents all supported variables.
+
+### 6. Set up your molecule
 
 Place a starting XYZ file in `pre_xyz/`.  Line 2 must encode the charge and multiplicity:
 
@@ -99,7 +118,7 @@ C    0.000000    0.000000    0.000000
 
 Both `charge=0 mult=1` (key=value) and `0 1` (bare integers) are accepted.  If neither is found, defaults are charge=0, mult=1.
 
-### 6. Run the pipeline (local workstation example)
+### 7. Run the pipeline (local workstation example)
 
 ```bash
 # Stage 1: Optimise geometry in vacuum
@@ -135,13 +154,13 @@ python3 or_vcd_ir_tools.py pna/05_vcd \
     --outdir pna --xlim 800 3500
 ```
 
-### 7. Run the pipeline (HPC/SLURM example)
+### 8. Run the pipeline (HPC/SLURM example)
 
-On a cluster with SLURM, simply omit `--local`.  The scripts detect `sbatch` automatically and submit jobs:
+On a cluster with SLURM, simply omit `--local`.  The scripts detect `sbatch` automatically and submit jobs.  With `cluster.cfg` configured, no additional flags are needed:
 
 ```bash
-./1-orca-init-opt.sh --cpus 8 --partition general --time 02:00:00 pna
-# → submits SLURM job; monitor with squeue
+./1-orca-init-opt.sh --cpus 8 pna
+# → submits SLURM job to the partition set in cluster.cfg; monitor with squeue
 ```
 
 ---
@@ -586,14 +605,22 @@ The UV-Vis and ECD labs share a report template because they both use the electr
 
 ## Troubleshooting
 
-**ORCA not found:** Set the `ORCA_BIN` environment variable or use the `--orca-bin` flag:
+**ORCA not found or wrong version used:**  The recommended setup is to configure `cluster.cfg` (see Quick Start step 5).  This is the most reliable approach because it is explicit, per-repo, and never conflicts with system `PATH` or shell rc files.  Alternatives in order of priority:
 ```bash
-export ORCA_BIN=/opt/orca_6_0_1/orca
-# or
-./1-orca-init-opt.sh --orca-bin /opt/orca_6_0_1/orca --local pna
-```
+# Option 1 — cluster.cfg (recommended, set once per clone)
+echo 'ORCA_BIN=/path/to/orca' >> cluster.cfg
 
-**OpenMPI version mismatch:** ORCA ships with a specific OpenMPI version.  If you get MPI errors, ensure the OpenMPI in your `PATH` matches the version ORCA was compiled against.  See [INSTALL.md](INSTALL.md) for details.
+# Option 2 — environment variable
+export ORCA_BIN=/path/to/orca
+
+# Option 3 — per-invocation flag
+./1-orca-init-opt.sh --orca-bin /path/to/orca pna
+```
+The scripts resolve the binary in that order: `--orca-bin` flag → `ORCA_BIN` env var (including from `cluster.cfg`) → `which orca`.  If the wrong version is being picked up, check each level.  A common pitfall is an old ORCA installation left on `PATH` in `~/.bashrc` — this will be silently used if neither `ORCA_BIN` nor `--orca-bin` is set.
+
+**ORCA binary path is wrong or not executable:**  The scripts validate the resolved binary before submitting any job.  If you see `does not exist or is not executable`, confirm the full path in `cluster.cfg` is correct and that the binary has execute permission (`ls -l $ORCA_BIN`).
+
+**OpenMPI version mismatch:**  ORCA 6 shared builds require the specific OpenMPI version they were compiled against to be on `LD_LIBRARY_PATH`.  Set `OMPI_DIR` in `cluster.cfg` to the matching OpenMPI root; the SLURM job scripts will add `$OMPI_DIR/lib` automatically.  See [INSTALL.md](INSTALL.md) for details.
 
 **Convergence failure:** Increase `--max-iter` or try a different initial geometry.  Check the `.log` file for SCF convergence messages.
 

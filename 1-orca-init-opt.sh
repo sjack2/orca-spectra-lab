@@ -34,8 +34,14 @@
 #   -h | --help                    Show this help and exit
 #
 #   SLURM-only flags (ignored in --local mode):
-#        --partition NAME          SLURM partition               [circe]
+#        --partition NAME          SLURM partition               [general]
 #        --time HH:MM:SS           Wall-clock limit              [06:00:00]
+#
+# Cluster configuration (cluster.cfg):
+#   Create a file named cluster.cfg in the same directory as this script
+#   to set site-specific defaults without using flags every time.
+#   See cluster.cfg.example for the full list of supported variables.
+#   Variables set by cluster.cfg are overridden by explicit CLI flags.
 #
 # XYZ charge/multiplicity convention:
 #   Line 2 of each .xyz file may specify charge and multiplicity in
@@ -83,9 +89,29 @@ DEFAULT_WALL="06:00:00"
 XYZ_DIR="pre_xyz"           # where starting geometries live
 
 # ============================================================================
+# CLUSTER CONFIG
+# ============================================================================
+# Loads cluster.cfg from the script's own directory if present.
+# Supported variables (all optional):
+#   ORCA_BIN          — full path to the ORCA executable
+#   OMPI_DIR          — OpenMPI installation root (for SLURM LD_LIBRARY_PATH)
+#   CLUSTER_PARTITION — default SLURM partition
+#   CLUSTER_WALL      — default SLURM wall-clock limit (HH:MM:SS)
+source_cluster_cfg() {
+    local script_dir cfg
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cfg="${script_dir}/cluster.cfg"
+    if [[ -f $cfg ]]; then
+        log "Loaded cluster config: ${cfg}"
+        # shellcheck source=/dev/null
+        source "$cfg"
+    fi
+}
+
+# ============================================================================
 # ORCA BINARY RESOLUTION
 # ============================================================================
-# Priority: --orca-bin flag  >  ORCA_BIN env var  >  `which orca`
+# Priority: --orca-bin flag  >  ORCA_BIN env var (incl. cluster.cfg)  >  `which orca`
 # The variable orca_bin is set during CLI parsing and finalised in main().
 resolve_orca_bin() {
     # $1 = value from --orca-bin flag (may be empty)
@@ -217,8 +243,8 @@ parse_cli() {
     cpus=$DEFAULT_CPUS
     grid=$DEFAULT_GRID
     mem_mb=$DEFAULT_MEM_PER_CPU
-    partition=$DEFAULT_PARTITION
-    wall=$DEFAULT_WALL
+    partition=${CLUSTER_PARTITION:-$DEFAULT_PARTITION}
+    wall=${CLUSTER_WALL:-$DEFAULT_WALL}
     dry_run=false
     force_local=false
     list_file=""
@@ -308,7 +334,7 @@ write_slurm() {
     local abs_workdir orca_dir ompi_dir
     abs_workdir=$(cd "$workdir" && pwd)
     orca_dir=$(dirname "$orca_bin")
-    ompi_dir=${ompi_dir_flag:-/shares/chem_hlw/orca/openmpi-4.1.6}
+    ompi_dir=${ompi_dir_flag:-${OMPI_DIR:-/shares/chem_hlw/orca/openmpi-4.1.6}}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
@@ -414,6 +440,7 @@ EOF
 # MAIN
 # ============================================================================
 main() {
+    source_cluster_cfg
     parse_cli "$@"
 
     # resolve execution mode and ORCA binary
@@ -422,7 +449,11 @@ main() {
 
     # in non-dry-run mode, ORCA must be findable
     if ! $dry_run && [[ -z $orca_bin ]]; then
-        die "ORCA binary not found. Set ORCA_BIN, use --orca-bin, or add orca to PATH."
+        die "ORCA binary not found. Set ORCA_BIN in cluster.cfg, use --orca-bin, or add orca to PATH."
+    fi
+    # verify the resolved binary is actually executable
+    if ! $dry_run && [[ -n $orca_bin && ! -x $orca_bin ]]; then
+        die "ORCA binary '${orca_bin}' does not exist or is not executable. Check ORCA_BIN in cluster.cfg or --orca-bin."
     fi
     # even in dry-run, warn if missing
     if [[ -z $orca_bin ]]; then

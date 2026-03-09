@@ -17,6 +17,9 @@ methyloxirane/
 */05_vcd/
 */06_spectra/
 
+# Cluster-specific configuration (site paths must not be committed)
+cluster.cfg
+
 # Claude Code local settings (machine-specific)
 .claude/
 
