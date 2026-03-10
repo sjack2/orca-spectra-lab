@@ -277,6 +277,7 @@ def _cli() -> None:
             prefix = "vib"
     else:
         prefix = args.prefix
+        Path(prefix).parent.mkdir(parents=True, exist_ok=True)
 
     # -------------------------------------------------------------- #
     #   Collect log paths                                            #

@@ -364,6 +364,7 @@ def _cli() -> None:
             prefix = "spectra"
     else:
         prefix = args.prefix
+        Path(prefix).parent.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------ #
     #   Locate .log files                                                #
