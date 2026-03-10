@@ -154,8 +154,13 @@ def _stick_spectrum(
     *,
     signed: bool,
     invert: bool = False,
+    nu_min: float = 0.0,
+    nu_max: float = float("inf"),
 ):
+    lo, hi = min(nu_min, nu_max), max(nu_min, nu_max)
     for _, row in df.iterrows():
+        if not (lo <= row["nu_cm"] <= hi):
+            continue
         height = -row["intensity"] if invert and not signed else row["intensity"]
         color = (
             "royalblue"
@@ -193,7 +198,7 @@ def _plot(
     fig, ax = plt.subplots(figsize=(4.75, 3.25))
     ax.plot(nu_grid, curve, color="black", lw=1.1)
     if sticks:
-        _stick_spectrum(ax, df, signed=signed, invert=invert)
+        _stick_spectrum(ax, df, signed=signed, invert=invert, nu_min=nu_min, nu_max=nu_max)
     if signed:
         ax.axhline(0, color="grey", lw=0.8)
 

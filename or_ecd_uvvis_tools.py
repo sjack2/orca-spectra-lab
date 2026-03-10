@@ -55,6 +55,7 @@ SQRT2PI = np.sqrt(2.0 * np.pi)
 _BLOCK_HEADER_RE = re.compile(
     r"^(ABSORPTION|CD) SPECTRUM VIA TRANSITION (ELECTRIC|VELOCITY) DIPOLE MOMENTS"
 )
+_CIS_END_RE = re.compile(r"ORCA-CIS/TD-DFT FINISHED|^\s*Total run time:")
 
 # ---------------------------------------------------------------------- #
 #                           PARSING UTILITIES                            #
@@ -102,6 +103,8 @@ def parse_orca_log(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         block: List[str] = []
         j = i + 1
         while j < n_lines and not _BLOCK_HEADER_RE.match(lines[j].lstrip()):
+            if _CIS_END_RE.search(lines[j]):
+                break
             block.append(lines[j])
             j += 1
 
@@ -200,9 +203,14 @@ def broaden(
     return curve
 
 
-def _stick_spectrum(ax, df: pd.DataFrame, *, is_ecd: bool, scale: float):
+def _stick_spectrum(
+    ax, df: pd.DataFrame, *, is_ecd: bool, scale: float, lam_min: float, lam_max: float
+):
     """Draw vertical lines representing individual transitions."""
+    lo, hi = min(lam_min, lam_max), max(lam_min, lam_max)
     for _, row in df.iterrows():
+        if not (lo <= row["wavelength_nm"] <= hi):
+            continue
         color = (
             "royalblue"
             if is_ecd and row["intensity"] >= 0
@@ -256,7 +264,7 @@ def _make_plot(
     ax.plot(lam_nm, curve, color="black", lw=1.1)
 
     if sticks:
-        _stick_spectrum(ax, df, is_ecd=is_ecd, scale=scale)
+        _stick_spectrum(ax, df, is_ecd=is_ecd, scale=scale, lam_min=lam_min, lam_max=lam_max)
 
     if is_ecd:
         ax.axhline(0, color="grey", lw=0.8)
