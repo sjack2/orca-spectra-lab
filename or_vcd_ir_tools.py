@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ============================================================================
-# or_vcd_ir_tools.py - Parse ORCA *AnFreq* logs and build Boltzmann‑weighted
-# IR absorption and VCD spectra (stage 6‑alt post‑processing).
+# or_vcd_ir_tools.py - Parse ORCA *AnFreq* logs and build Boltzmann-weighted
+# IR absorption and VCD spectra (stage 6-alt post-processing).
 #
 # OVERVIEW
-#   - Accepts one or more *.log* files, glob patterns or directories.  
-#   - Optionally reads a Boltzmann‑weight table produced by
-#     *5‑orca‑boltzmann‑weight.sh* and scales intensities accordingly.  
-#   - Writes two CSV tables (`*_ir.csv`, `*_vcd.csv`) and generates Gaussian‑
-#     broadened spectra as PNG + PDF.  
+#   - Accepts one or more *.log* files, glob patterns or directories. 
+#   - Optionally reads a Boltzmann-weight table produced by
+#     *5-orca-boltzmann-weight.sh* and scales intensities accordingly. 
+#   - Writes two CSV tables (`*_ir.csv`, `*_vcd.csv`) and generates Gaussian-
+#     broadened spectra as PNG + PDF. 
 #
 # Quick examples
 #   # Plot a single conformer with default settings
@@ -27,8 +27,8 @@
 #   --prefix STR       Prefix for all outputs               [vib]
 #   --stick            Overlay stick spectra
 #   --invert_ir        Plot IR absorption peaks downward
-#   --ir_fwhm CM-1     Gaussian FWHM for IR   (cm‑1)        [10]
-#   --vcd_fwhm CM-1    Gaussian FWHM for VCD  (cm‑1)        [6]
+#   --ir_fwhm CM-1     Gaussian FWHM for IR   (cm-1)        [10]
+#   --vcd_fwhm CM-1    Gaussian FWHM for VCD  (cm-1)        [6]
 #
 # ============================================================================
 
@@ -83,7 +83,7 @@ def _iter_blocks(lines: Sequence[str], header_re: re.Pattern[str]) -> List[List[
 
 
 def _parse_block(block: List[str], signed: bool) -> List[Dict[str, float]]:
-    """Parse one IR or VCD block into rows with ν (cm‑1) and intensity."""
+    """Parse one IR or VCD block into rows with nu (cm-1) and intensity."""
     # skip until numeric lines begin
     idx = 0
     while idx < len(block) and not re.match(r"\s*\d+", block[idx]):
@@ -107,8 +107,8 @@ def parse_orca_vib(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     Returns
     -------
-    ir_df   : DataFrame with ν (cm‑1) and intensity
-    vcd_df  : DataFrame with ν (cm‑1) and rotatory strength
+    ir_df   : DataFrame with nu (cm-1) and intensity
+    vcd_df  : DataFrame with nu (cm-1) and rotatory strength
     """
     with open(path, encoding="utf-8", errors="ignore") as fh:
         lines = fh.readlines()
@@ -135,12 +135,12 @@ def _sigma_from_fwhm(fwhm: float) -> float:
 
 def broaden(df: pd.DataFrame, *, sigma: float, nu_grid: np.ndarray) -> np.ndarray:
     """
-    Convolve stick spectrum with a Gaussian of width *sigma* (cm‑1).
+    Convolve stick spectrum with a Gaussian of width *sigma* (cm-1).
 
-    The Gaussians are *not* normalised by 1/(σ√2π) so peak height equals stick.
+    The Gaussians are *not* normalized by 1/(sigma*sqrt(2*pi)) so peak height equals stick.
     """
     if sigma <= 0:
-        raise ValueError("σ must be positive.")
+        raise ValueError("sigma must be positive.")
     curve = np.zeros_like(nu_grid)
     pref = 1.0 / (sigma * SQRT2PI)
     for nu0, inten in zip(df["nu_cm"], df["intensity"]):
@@ -241,7 +241,7 @@ def load_weights(path: str) -> Dict[str, float]:
 def _cli() -> None:
     parser = argparse.ArgumentParser(
         prog="or_vcd_ir_tools.py",
-        description="Parse ORCA AnFreq logs and plot Boltzmann‑weighted IR & VCD spectra.",
+        description="Parse ORCA AnFreq logs and plot Boltzmann-weighted IR & VCD spectra.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("logs", nargs="+", help="Log files, glob patterns, or directories")
@@ -255,14 +255,14 @@ def _cli() -> None:
     parser.add_argument("--prefix", default=None, help="Explicit output prefix [vib]")
     parser.add_argument("--stick", action="store_true", help="Overlay stick spectra")
     parser.add_argument("--invert_ir", action="store_true", help="Plot IR peaks downward")
-    parser.add_argument("--ir_fwhm", type=float, default=10.0, help="IR FWHM / cm‑1")
-    parser.add_argument("--vcd_fwhm", type=float, default=6.0, help="VCD FWHM / cm‑1")
+    parser.add_argument("--ir_fwhm", type=float, default=10.0, help="IR FWHM / cm-1")
+    parser.add_argument("--vcd_fwhm", type=float, default=6.0, help="VCD FWHM / cm-1")
     parser.add_argument(
         "--xlim",
         nargs=2,
         metavar=("MIN", "MAX"),
         type=float,
-        help="ν range / cm‑1",
+        help="nu range / cm-1",
     )
     parser.add_argument("--ir_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
     parser.add_argument("--vcd_ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"))
@@ -359,8 +359,8 @@ def _cli() -> None:
     )
 
     print(
-        f"{len(log_files)} log(s) → {len(ir_df)} IR and {len(vcd_df)} VCD transitions "
-        f"(σ_ir={sigma_ir:.1f} cm⁻¹, σ_vcd={sigma_vcd:.1f} cm⁻¹)"
+        f"{len(log_files)} log(s) -> {len(ir_df)} IR and {len(vcd_df)} VCD transitions "
+        f"(sigma_ir={sigma_ir:.1f} cm-1, sigma_vcd={sigma_vcd:.1f} cm-1)"
     )
 
 

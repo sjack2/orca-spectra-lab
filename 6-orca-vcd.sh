@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 6-orca-vcd.sh — Analytic frequency / IR + VCD calculations (Stage 6-vcd)
+# 6-orca-vcd.sh -- Analytic frequency / IR + VCD calculations (Stage 6-vcd)
 # ============================================================================
 #
 # OVERVIEW
@@ -9,7 +9,7 @@
 #   implicit solvent and either runs it locally or submits a SLURM job.
 #
 #   The resulting outputs contain IR absorption intensities and VCD
-#   rotatory strengths for all normal modes.  Post-process with
+#   rotatory strengths for all normal modes. Post-process with
 #   or_vcd_ir_tools.py to produce Boltzmann-weighted broadened spectra.
 #
 #   This script is a parallel alternative to 6-orca-ecd.sh (TD-DFT).
@@ -28,7 +28,7 @@
 #        --solvent NAME        SMD solvent keyword              [water]
 #        --max-iter N          SCF iteration limit              [150]
 #   -c | --cpus N              CPU cores (%pal + SLURM)        [4]
-#   -g | --grid N              DEFGRID level (1–3)             [3]
+#   -g | --grid N              DEFGRID level (1-3)             [3]
 #        --mem-per-cpu MB      Memory per core in MB            [2048]
 #        --orca-bin PATH       Path to ORCA binary              [auto]
 #        --list FILE           File of molecule TAGs
@@ -48,14 +48,14 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── 04_boltzmann/<TAG>_bw_labels.dat     ← conformer list (from Stage 5)
-#   ├── 03_solvent_opt/<CID>/<CID>.xyz        ← geometries (from Stage 4)
-#   └── 05_vcd/
-#       ├── <CID>/
-#       │   ├── <CID>.inp                  ORCA AnFreq input
-#       │   ├── <CID>.log                  ORCA output
-#       │   └── <CID>.slurm               (HPC mode only)
-#       └── ...
+#   |-- 04_boltzmann/<TAG>_bw_labels.dat     <- conformer list (from Stage 5)
+#   |-- 03_solvent_opt/<CID>/<CID>.xyz        <- geometries (from Stage 4)
+#   -- 05_vcd/
+#       |-- <CID>/
+#       |   |-- <CID>.inp                  ORCA AnFreq input
+#       |   |-- <CID>.log                  ORCA output
+#       |   -- <CID>.slurm               (HPC mode only)
+#       -- ...
 #
 # Post-processing:
 #   or_vcd_ir_tools.py --bw <TAG>/04_boltzmann/<TAG>_energies.dat \
@@ -327,7 +327,7 @@ process_conformer() {
     write_orca_input "$cid" "$xyz_file" "$inp_file"
 
     if $dry_run; then
-        log "  [${cid}] dry run — input written to ${inp_file}"
+        log "  [${cid}] dry run -- input written to ${inp_file}"
         return
     fi
 
@@ -341,7 +341,7 @@ process_conformer() {
         if grep -q "VIBRATIONAL FREQUENCIES\|VCD SPECTRUM" "$log_file" 2>/dev/null; then
             log "  [${cid}] frequency calculation completed successfully"
         else
-            warn "  [${cid}] expected output blocks not found — check ${log_file}"
+            warn "  [${cid}] expected output blocks not found -- check ${log_file}"
         fi
     fi
 }
@@ -373,7 +373,7 @@ process_tag() {
     if [[ -f $pre_xyz ]]; then
         read_xyz_header "$pre_xyz"
     else
-        warn "[${tag}] ${pre_xyz} not found — using charge=0 mult=1"
+        warn "[${tag}] ${pre_xyz} not found -- using charge=0 mult=1"
     fi
 
     log "[${tag}] ${#cids[@]} conformers to process (charge=${charge}, mult=${mult})"
@@ -382,10 +382,10 @@ process_tag() {
         cid=$(echo "$cid" | xargs)  # trim whitespace
         [[ -z $cid ]] && continue
 
-        # look for the solvent-optimised geometry
+        # look for the solvent-optimized geometry
         local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
         if [[ ! -f $xyz ]]; then
-            warn "  [${cid}] solvent-optimised XYZ not found — skipping"
+            warn "  [${cid}] solvent-optimized XYZ not found -- skipping"
             continue
         fi
         process_conformer "$tag" "$cid" "$xyz"
@@ -433,7 +433,7 @@ main() {
         die "ORCA binary '${orca_bin}' does not exist or is not executable. Check ORCA_BIN in cluster.cfg or --orca-bin."
     fi
     if [[ -z $orca_bin ]]; then
-        warn "ORCA binary not found — dry-run will proceed without it"
+        warn "ORCA binary not found -- dry-run will proceed without it"
         orca_bin="orca"
     fi
 

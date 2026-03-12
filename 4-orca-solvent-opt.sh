@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 4-orca-solvent-opt.sh — Solvent-phase geometry optimisation (Stage 4)
+# 4-orca-solvent-opt.sh -- Solvent-phase geometry optimization (Stage 4)
 # ============================================================================
 #
 # OVERVIEW
@@ -9,9 +9,9 @@
 #     2. Writes an ORCA input with implicit solvent (SMD via CPCM),
 #     3. Either runs ORCA directly (--local) or submits a SLURM job.
 #
-#   Each conformer is optimised independently.  In local mode the
+#   Each conformer is optimized independently. In local mode the
 #   conformers are processed sequentially (this can take a while for
-#   large ensembles — use --dry-run first to check how many jobs there are).
+#   large ensembles -- use --dry-run first to check how many jobs there are).
 #
 # Usage:
 #   4-orca-solvent-opt.sh TAG
@@ -25,7 +25,7 @@
 #        --solvent NAME        SMD solvent keyword              [water]
 #        --max-iter N          SCF iteration limit              [150]
 #   -c | --cpus N              CPU cores (%pal + SLURM)        [4]
-#   -g | --grid N              DEFGRID level (1–3)             [3]
+#   -g | --grid N              DEFGRID level (1-3)             [3]
 #        --mem-per-cpu MB      Memory per core in MB            [2048]
 #        --orca-bin PATH       Path to ORCA binary              [auto]
 #        --list FILE           File of molecule TAGs
@@ -44,22 +44,22 @@
 #   Variables set by cluster.cfg are overridden by explicit CLI flags.
 #
 # XYZ charge/multiplicity:
-#   Parsed from pre_xyz/<TAG>.xyz line 2.  Supports both formats:
+#   Parsed from pre_xyz/<TAG>.xyz line 2. Supports both formats:
 #     charge=0 mult=1       (key=value)
 #     0 1                   (bare integers)
 #
 # Directory layout:
 #   <TAG>/
-#   ├── 02_conf_search/split_xyz/     ← input conformers (from Stage 3/3b)
-#   ├── 03_solvent_opt/
-#   │   ├── <TAG>_001/               one directory per conformer
-#   │   │   ├── <TAG>_001.inp
-#   │   │   ├── <TAG>_001.log
-#   │   │   ├── <TAG>_001.xyz        optimised geometry (ORCA output)
-#   │   │   └── <TAG>_001.slurm      (HPC mode only)
-#   │   └── <TAG>_002/
-#   │       └── ...
-#   └── pre_xyz/<TAG>.xyz            must exist for charge/mult
+#   |-- 02_conf_search/split_xyz/     <- input conformers (from Stage 3/3b)
+#   |-- 03_solvent_opt/
+#   |   |-- <TAG>_001/               one directory per conformer
+#   |   |   |-- <TAG>_001.inp
+#   |   |   |-- <TAG>_001.log
+#   |   |   |-- <TAG>_001.xyz        optimized geometry (ORCA output)
+#   |   |   -- <TAG>_001.slurm      (HPC mode only)
+#   |   -- <TAG>_002/
+#   |       -- ...
+#   -- pre_xyz/<TAG>.xyz            must exist for charge/mult
 #
 # Examples:
 #   # Local: optimise all conformers of ephedrine in water
@@ -322,7 +322,7 @@ process_conformer() {
     write_orca_input "$cid" "$xyz_file" "$inp_file"
 
     if $dry_run; then
-        log "  [${cid}] dry run — input written to ${inp_file}"
+        log "  [${cid}] dry run -- input written to ${inp_file}"
         return
     fi
 
@@ -336,7 +336,7 @@ process_conformer() {
         if grep -q "HURRAY\|THE OPTIMIZATION HAS CONVERGED" "$log_file" 2>/dev/null; then
             log "  [${cid}] converged"
         else
-            warn "  [${cid}] convergence not confirmed — check ${log_file}"
+            warn "  [${cid}] convergence not confirmed -- check ${log_file}"
         fi
     fi
 }
@@ -359,7 +359,7 @@ process_tag() {
     if [[ -f $pre_xyz ]]; then
         read_xyz_header "$pre_xyz"
     else
-        warn "[${tag}] ${pre_xyz} not found — using charge=0 mult=1"
+        warn "[${tag}] ${pre_xyz} not found -- using charge=0 mult=1"
     fi
 
     # collect conformer XYZ files
@@ -390,7 +390,7 @@ print_banner() {
     disp=$(disp_keyword)
     cat >&2 <<EOF
 =============================================================
- Stage 4: Solvent-Phase Geometry Optimisation
+ Stage 4: Solvent-Phase Geometry Optimization
 -------------------------------------------------------------
  Mode        : ${exec_mode}
  ORCA binary : ${orca_bin}
@@ -423,7 +423,7 @@ main() {
         die "ORCA binary '${orca_bin}' does not exist or is not executable. Check ORCA_BIN in cluster.cfg or --orca-bin."
     fi
     if [[ -z $orca_bin ]]; then
-        warn "ORCA binary not found — dry-run will proceed without it"
+        warn "ORCA binary not found -- dry-run will proceed without it"
         orca_bin="orca"
     fi
 

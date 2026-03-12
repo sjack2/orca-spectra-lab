@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 3-orca-conf-split.sh — Split Confab output into per-conformer XYZ (Stage 3)
+# 3-orca-conf-split.sh -- Split Confab output into per-conformer XYZ (Stage 3)
 # ============================================================================
 #
 # OVERVIEW
 #   Reads the combined SDF produced by Stage 2 (Confab), splits it into
-#   individual SDF files, and converts each to XYZ format.  The resulting
-#   XYZ files in split_xyz/ are the input for Stage 4 (solvent optimisation).
+#   individual SDF files, and converts each to XYZ format. The resulting
+#   XYZ files in split_xyz/ are the input for Stage 4 (solvent optimization).
 #
 # Usage:
 #   3-orca-conf-split.sh TAG
@@ -19,9 +19,9 @@
 #
 # Directory layout:
 #   <TAG>/02_conf_search/
-#   ├── <TAG>_combined.sdf     ← input (from Stage 2)
-#   ├── split_sdf/             individual SDF files
-#   └── split_xyz/             individual XYZ files → Stage 4 input
+#   |-- <TAG>_combined.sdf     <- input (from Stage 2)
+#   |-- split_sdf/             individual SDF files
+#   -- split_xyz/             individual XYZ files -> Stage 4 input
 #
 # Examples:
 #   3-orca-conf-split.sh ephedrine
@@ -154,7 +154,7 @@ main() {
             local sdf_path
             sdf_path=$(find_combined_sdf "$tag")
             if [[ -z $sdf_path ]]; then
-                warn "[${tag}] combined SDF not found — skipping"
+                warn "[${tag}] combined SDF not found -- skipping"
                 continue
             fi
             split_and_convert "$tag" "$sdf_path"

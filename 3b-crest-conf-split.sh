@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 3b-crest-conf-split.sh — Split CREST output into per-conformer XYZ (Stage 3b)
+# 3b-crest-conf-split.sh -- Split CREST output into per-conformer XYZ (Stage 3b)
 # ============================================================================
 #
 # OVERVIEW
 #   Reads crest_conformers.xyz produced by Stage 2b (CREST) and splits it
-#   into individual numbered XYZ files.  Also copies the reference geometry
+#   into individual numbered XYZ files. Also copies the reference geometry
 #   to pre_xyz/ if not already present (needed by later stages for
 #   charge/multiplicity parsing).
 #
@@ -20,11 +20,11 @@
 #
 # Directory layout:
 #   <TAG>/02_conf_search/
-#   ├── crest_conformers.xyz       ← input (from Stage 2b)
-#   └── split_xyz/
-#       ├── <TAG>_001.xyz          individual conformers (zero-padded)
-#       ├── <TAG>_002.xyz          → Stage 4 input
-#       └── ...
+#   |-- crest_conformers.xyz       <- input (from Stage 2b)
+#   -- split_xyz/
+#       |-- <TAG>_001.xyz          individual conformers (zero-padded)
+#       |-- <TAG>_002.xyz          -> Stage 4 input
+#       -- ...
 #
 # Examples:
 #   3b-crest-conf-split.sh ephedrine
@@ -86,7 +86,7 @@ split_crest_xyz() {
     local outdir="${tag}/02_conf_search/split_xyz"
 
     if [[ ! -f $src ]]; then
-        warn "[${tag}] crest_conformers.xyz not found — skipping"
+        warn "[${tag}] crest_conformers.xyz not found -- skipping"
         return
     fi
 
@@ -107,7 +107,7 @@ split_crest_xyz() {
     #   <comment line>
     #   <coord line 1>
     #   ...
-    #   <atom_count>       ← next structure starts
+    #   <atom_count>       <- next structure starts
     #   ...
     awk -v tag="$tag" -v outdir="$outdir" '
     BEGIN { idx = 0 }

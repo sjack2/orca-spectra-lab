@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 1-orca-init-opt.sh — Gas-phase geometry optimisation (Stage 1)
+# 1-orca-init-opt.sh -- Gas-phase geometry optimization (Stage 1)
 # ============================================================================
 #
 # OVERVIEW
 #   For each supplied molecule this script:
 #     1. Reads charge and multiplicity from the XYZ comment line,
-#     2. Writes an ORCA 6 geometry-optimisation input file,
+#     2. Writes an ORCA 6 geometry-optimization input file,
 #     3. Either runs ORCA directly (--local) or submits a SLURM job.
 #
 #   Execution mode is chosen automatically: if sbatch is available and
-#   --local is not set, SLURM mode is used.  Otherwise, ORCA is run
+#   --local is not set, SLURM mode is used. Otherwise, ORCA is run
 #   directly in the current shell.
 #
 # Usage:
@@ -25,7 +25,7 @@
 #        --disp {auto,none,D3BJ}   Dispersion correction        [auto]
 #        --max-iter N              SCF iteration limit           [300]
 #   -c | --cpus N                  CPU cores (%pal + SLURM)     [4]
-#   -g | --grid N                  DEFGRID level (1–3)          [3]
+#   -g | --grid N                  DEFGRID level (1-3)          [3]
 #        --mem-per-cpu MB          Memory per core in MB         [2048]
 #        --orca-bin PATH           Path to ORCA binary           [auto]
 #        --list FILE               File of TAGs or XYZ paths
@@ -52,11 +52,11 @@
 #
 # Directory layout produced:
 #   <TAG>/
-#   └── 01_gas_opt/
-#       ├── <TAG>.inp          ORCA input
-#       ├── <TAG>.log          ORCA output  (after execution)
-#       ├── <TAG>.xyz          optimised geometry (ORCA writes this)
-#       └── <TAG>.slurm        SLURM script (HPC mode only)
+#   -- 01_gas_opt/
+#       |-- <TAG>.inp          ORCA input
+#       |-- <TAG>.log          ORCA output  (after execution)
+#       |-- <TAG>.xyz          optimized geometry (ORCA writes this)
+#       -- <TAG>.slurm        SLURM script (HPC mode only)
 #
 # Examples:
 #   # Local workstation, 4 cores, default method
@@ -93,10 +93,10 @@ XYZ_DIR="pre_xyz"           # where starting geometries live
 # ============================================================================
 # Loads cluster.cfg from the script's own directory if present.
 # Supported variables (all optional):
-#   ORCA_BIN          — full path to the ORCA executable
-#   OMPI_DIR          — OpenMPI installation root (for SLURM LD_LIBRARY_PATH)
-#   CLUSTER_PARTITION — default SLURM partition
-#   CLUSTER_WALL      — default SLURM wall-clock limit (HH:MM:SS)
+#   ORCA_BIN          -- full path to the ORCA executable
+#   OMPI_DIR          -- OpenMPI installation root (for SLURM LD_LIBRARY_PATH)
+#   CLUSTER_PARTITION -- default SLURM partition
+#   CLUSTER_WALL      -- default SLURM wall-clock limit (HH:MM:SS)
 source_cluster_cfg() {
     local script_dir cfg
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -135,7 +135,7 @@ resolve_orca_bin() {
         return
     fi
 
-    # nothing found — caller will decide whether this is fatal
+    # nothing found -- caller will decide whether this is fatal
     printf ''
 }
 
@@ -156,7 +156,7 @@ show_help() {
 # ============================================================================
 # EXECUTION-MODE DETECTION
 # ============================================================================
-# Returns "local" or "slurm".  --local flag always wins; otherwise we
+# Returns "local" or "slurm". --local flag always wins; otherwise we
 # check whether sbatch is available.
 detect_mode() {
     local force_local=$1
@@ -173,7 +173,7 @@ detect_mode() {
 # CHARGE / MULTIPLICITY PARSER
 # ============================================================================
 # Reads line 2 of an XYZ file and sets the global variables `charge`
-# and `mult`.  Supports two formats:
+# and `mult`. Supports two formats:
 #   charge=0 mult=1     (key=value, any surrounding text)
 #   0 1                 (bare integers)
 read_xyz_header() {
@@ -203,7 +203,7 @@ read_xyz_header() {
 # DISPERSION LOGIC
 # ============================================================================
 # Returns the dispersion keyword to append to the ORCA bang line, or
-# an empty string if none is needed.  In "auto" mode the script avoids
+# an empty string if none is needed. In "auto" mode the script avoids
 # doubling up on functionals that already include dispersion.
 disp_keyword() {
     local method_upper=${method^^}
@@ -295,7 +295,7 @@ mem-per-cpu:,partition:,time:,list:,dry-run,local,orca-bin:,openmpi-dir: -- "$@"
         require_file "$xyz_arg"
     fi
 
-    # clamp grid to 1–3
+    # clamp grid to 1-3
     (( grid < 1 )) && grid=1 || true
     (( grid > 3 )) && grid=3 || true
 }
@@ -406,9 +406,9 @@ process_molecule() {
         log "[${tag}] running ORCA locally (${cpus} cores)"
         "$orca_bin" "$inp_file" > "$log_file" 2>&1
         if grep -q "HURRAY\|THE OPTIMIZATION HAS CONVERGED" "$log_file" 2>/dev/null; then
-            log "[${tag}] optimisation converged"
+            log "[${tag}] optimization converged"
         else
-            warn "[${tag}] convergence string not found — check ${log_file}"
+            warn "[${tag}] convergence string not found -- check ${log_file}"
         fi
     fi
 }
@@ -421,7 +421,7 @@ print_banner() {
     disp=$(disp_keyword)
     cat >&2 <<EOF
 =============================================================
- Stage 1: Gas-Phase Geometry Optimisation
+ Stage 1: Gas-Phase Geometry Optimization
 -------------------------------------------------------------
  Mode        : ${exec_mode}
  ORCA binary : ${orca_bin}
@@ -457,7 +457,7 @@ main() {
     fi
     # even in dry-run, warn if missing
     if [[ -z $orca_bin ]]; then
-        warn "ORCA binary not found — dry-run will proceed without it"
+        warn "ORCA binary not found -- dry-run will proceed without it"
         orca_bin="orca"   # placeholder for display
     fi
 
@@ -476,7 +476,7 @@ main() {
                 tag=$entry
             fi
             if [[ ! -f $xyz_path ]]; then
-                warn "'${xyz_path}' not found — skipping"
+                warn "'${xyz_path}' not found -- skipping"
                 continue
             fi
             process_molecule "$xyz_path" "$tag"

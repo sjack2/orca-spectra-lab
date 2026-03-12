@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 2b-crest-conf-search.sh — Conformer enumeration with CREST (Stage 2b)
+# 2b-crest-conf-search.sh -- Conformer enumeration with CREST (Stage 2b)
 # ============================================================================
 #
 # OVERVIEW
-#   Alternative to Stage 2 (Confab).  Uses CREST's GFN2-xTB metadynamics
+#   Alternative to Stage 2 (Confab). Uses CREST's GFN2-xTB metadynamics
 #   to explore the conformational landscape more thoroughly than force-field
-#   methods.  Better for flexible molecules; slower but more reliable.
+#   methods. Better for flexible molecules; slower but more reliable.
 #
 #   Execution mode:
-#     --local   → runs CREST directly in the current shell (blocking)
-#     (default) → submits a SLURM batch job if sbatch is available
+#     --local   -> runs CREST directly in the current shell (blocking)
+#     (default) -> submits a SLURM batch job if sbatch is available
 #
 # Usage:
 #   2b-crest-conf-search.sh TAG
@@ -32,11 +32,11 @@
 #
 # Directory layout:
 #   <TAG>/
-#   └── 02_conf_search/
-#       ├── <TAG>.xyz               copy of input geometry
-#       ├── crest_conformers.xyz    CREST output (multi-structure XYZ)
-#       ├── crest.log               CREST log file
-#       └── crest.energies          parsed energy table
+#   -- 02_conf_search/
+#       |-- <TAG>.xyz               copy of input geometry
+#       |-- crest_conformers.xyz    CREST output (multi-structure XYZ)
+#       |-- crest.log               CREST log file
+#       -- crest.energies          parsed energy table
 #
 #   After running this, use 3b-crest-conf-split.sh to split conformers
 #   into individual XYZ files.
@@ -139,13 +139,13 @@ parse_cli() {
 
     command -v crest >/dev/null 2>&1 || \
         { $force_local && die "crest not found in PATH"; } || \
-        warn "crest not found in PATH — SLURM jobs will need it on compute nodes"
+        warn "crest not found in PATH -- SLURM jobs will need it on compute nodes"
 }
 
 # ============================================================================
-# FIND OPTIMISED XYZ
+# FIND OPTIMIZED XYZ
 # ============================================================================
-find_optimised_xyz() {
+find_optimized_xyz() {
     local tag=$1
     local probe
 
@@ -186,7 +186,7 @@ run_worker() {
         awk '/TOTAL/{printf "%17.10f %8.3f %s\n",$4,$6,$7}' crest.log > crest.energies
     fi
 
-    log "[${tag}] CREST finished — $(grep -c '^[[:space:]]*[0-9]' crest_conformers.xyz 2>/dev/null || echo '?') structures"
+    log "[${tag}] CREST finished -- $(grep -c '^[[:space:]]*[0-9]' crest_conformers.xyz 2>/dev/null || echo '?') structures"
 }
 
 # ============================================================================
@@ -273,9 +273,9 @@ main() {
             require_file "$xyz_path"
         else
             tag=$entry
-            xyz_path=$(find_optimised_xyz "$tag")
+            xyz_path=$(find_optimized_xyz "$tag")
             if [[ -z $xyz_path ]]; then
-                warn "[${tag}] optimised XYZ not found — skipping"
+                warn "[${tag}] optimized XYZ not found -- skipping"
                 continue
             fi
         fi

@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 # ============================================================================
-# or_ecd_uvvis_tools.py - Parse ORCA TD‑DFT log files and build
-# Boltzmann‑weighted, Gaussian‑broadened UV/Vis and ECD spectra.
+# or_ecd_uvvis_tools.py - Parse ORCA TD-DFT log files and build
+# Boltzmann-weighted, Gaussian-broadened UV/Vis and ECD spectra.
 #
 # OVERVIEW
-#   1. Collects *.log files (positional patterns, wild‑cards, or directories),
-#   2. Extracts stick data from “ABSORPTION” and “CD” spectrum blocks,
-#   3. Applies optional Boltzmann weights (5‑orca‑boltzmann‑weight output),
+#   1. Collects *.log files (positional patterns, wild-cards, or directories),
+#   2. Extracts stick data from "ABSORPTION" and "CD" spectrum blocks,
+#   3. Applies optional Boltzmann weights (5-orca-boltzmann-weight output),
 #   4. Writes CSV tables and plots broadened spectra (PNG + PDF).
 #
 # Quick examples
 #   # simple: average of logs in the current folder
 #   or_ecd_uvvis_tools.py *.log
 #
-#   # recurse through folders, supply Boltzmann weights, 0.35 eV Gaussian FWHM
+#   # recurse through folders, supply Boltzmann weights, 0.35 eV Gaussian FWHM
 #   or_ecd_uvvis_tools.py --bw aspirin/bw_results/aspirin_energies.dat \
 #       --uv_fwhm 0.35 --ecd_fwhm 0.25 ./aspirin/**
 #
-#   # publish‑quality plot with sticks and custom limits
+#   # publish-quality plot with sticks and custom limits
 #   or_ecd_uvvis_tools.py *.log --stick --xlim 190 350 --uv_ylim 0 0.05 \
 #       --ecd_ylim -2 2 --prefix aspirin_spectra
 #
 # Flags (see --help for full list)
-#   --bw PATH          Boltzmann weight file (stage‑5 output, energies.dat)
+#   --bw PATH          Boltzmann weight file (stage-5 output, energies.dat)
 #   --prefix STR       Prefix for all outputs              [spectra]
 #   --uv_fwhm EV       Gaussian FWHM for UV/Vis (eV)       [0.35]
 #   --ecd_fwhm EV      Gaussian FWHM for ECD   (eV)        [0.25]
@@ -49,7 +49,7 @@ import pandas as pd
 #                               CONSTANTS                                #
 # ---------------------------------------------------------------------- #
 
-HC_OVER_EV_NM = 1239.84193  # Planck·c in eV·nm
+HC_OVER_EV_NM = 1239.84193  # Planck*c in eV*nm
 SQRT2PI = np.sqrt(2.0 * np.pi)
 
 _BLOCK_HEADER_RE = re.compile(
@@ -77,7 +77,7 @@ def _safe_float(s: str) -> Optional[float]:
 
 def parse_orca_log(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Extract stick data from a single ORCA TD‑DFT log.
+    Extract stick data from a single ORCA TD-DFT log.
 
     Returns
     -------
@@ -117,9 +117,9 @@ def parse_orca_log(path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
         hdr_tokens = block[unit_idx - 1].split()
         unit_tokens = block[unit_idx].split()
 
-        # ORCA ≤5 used "(eV)" energy and "X -> Y" state notation;
+        # ORCA <=5 used "(eV)" energy and "X -> Y" state notation;
         # _canonical_tokens strips those 3 tokens so column indices need
-        # no offset.  ORCA 6 uses "(cm-1)" and a bare state index, which
+        # no offset. ORCA 6 uses "(cm-1)" and a bare state index, which
         # is NOT stripped, shifting every data column right by +1.
         if "(eV)" in unit_tokens:
             col_offset = 0
@@ -184,14 +184,14 @@ def broaden(
     jacobian: bool,
 ) -> np.ndarray:
     """
-    Return broadened curve on the supplied λ grid.
+    Return broadened curve on the supplied lambda grid.
 
-    Each Gaussian is normalised with 1/(σ√(2π)) so its peak equals the stick
-    intensity.  If *jacobian* is True (ECD), multiply by |dE/dλ| = E/λ so area
+    Each Gaussian is normalized with 1/(sigma*sqrt(2*pi)) so its peak equals the stick
+    intensity. If *jacobian* is True (ECD), multiply by |dE/dlambda| = E/lambda so area
     is preserved after change of variable.
     """
     if sigma_eV <= 0:
-        raise ValueError("σ must be positive.")
+        raise ValueError("sigma must be positive.")
 
     curve = np.zeros_like(lam_nm, dtype=float)
     prefactor = 1.0 / (sigma_eV * SQRT2PI)
@@ -337,7 +337,7 @@ def _cli() -> None:
     parser.add_argument(
         "--flip_x",
         action="store_true",
-        help="Plot long → short wavelength (e.g. 350 → 190 nm)",
+        help="Plot long -> short wavelength (e.g. 350 -> 190 nm)",
     )
     parser.add_argument(
         "--scale",
@@ -346,7 +346,7 @@ def _cli() -> None:
         metavar="FAC",
         help="Multiply intensities after Boltzmann weighting",
     )
-    parser.add_argument("--uv_fwhm", type=float, default=0.35, help="UV‑Vis Gaussian FWHM / eV")
+    parser.add_argument("--uv_fwhm", type=float, default=0.35, help="UV-Vis Gaussian FWHM / eV")
     parser.add_argument("--ecd_fwhm", type=float, default=0.25, help="ECD Gaussian FWHM / eV")
     parser.add_argument(
         "--xlim",
@@ -454,8 +454,8 @@ def _cli() -> None:
     )
 
     print(
-        f"{len(log_files)} log(s) → {len(uv_df)} UV and {len(ecd_df)} ECD transitions "
-        f"(σ_uv={sigma_uv:.3f} eV, σ_ecd={sigma_ecd:.3f} eV, scale={args.scale})"
+        f"{len(log_files)} log(s) -> {len(uv_df)} UV and {len(ecd_df)} ECD transitions "
+        f"(sigma_uv={sigma_uv:.3f} eV, sigma_ecd={sigma_ecd:.3f} eV, scale={args.scale})"
     )
 
 

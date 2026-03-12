@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 5-orca-boltzmann-weight.sh — Boltzmann weighting & filtering (Stage 5)
+# 5-orca-boltzmann-weight.sh -- Boltzmann weighting & filtering (Stage 5)
 # ============================================================================
 #
 # OVERVIEW
-#   Collects ORCA single-point energies from the solvent-phase optimisation
+#   Collects ORCA single-point energies from the solvent-phase optimization
 #   outputs (Stage 4), computes relative energies and Boltzmann populations
 #   at a given temperature, and writes two files:
 #
@@ -28,12 +28,12 @@
 #
 # Directory layout:
 #   <TAG>/
-#   ├── 03_solvent_opt/
-#   │   ├── <TAG>_001/<TAG>_001.log      ← input (Stage 4 outputs)
-#   │   └── <TAG>_002/<TAG>_002.log
-#   └── 04_boltzmann/
-#       ├── <TAG>_energies.dat           full table (CID E dE p)
-#       └── <TAG>_bw_labels.dat          filtered labels → Stage 6
+#   |-- 03_solvent_opt/
+#   |   |-- <TAG>_001/<TAG>_001.log      <- input (Stage 4 outputs)
+#   |   -- <TAG>_002/<TAG>_002.log
+#   -- 04_boltzmann/
+#       |-- <TAG>_energies.dat           full table (CID E dE p)
+#       -- <TAG>_bw_labels.dat          filtered labels -> Stage 6
 #
 # Examples:
 #   5-orca-boltzmann-weight.sh ephedrine
@@ -47,8 +47,8 @@ IFS=$'\n\t'
 # ============================================================================
 # DEFAULTS & CONSTANTS
 # ============================================================================
-H2KCAL=627.509474       # Hartree → kcal/mol
-R_J=8.314462618          # J mol⁻¹ K⁻¹
+H2KCAL=627.509474       # Hartree -> kcal/mol
+R_J=8.314462618          # J mol-1 K-1
 DEFAULT_TEMP=298.15
 DEFAULT_P_CUT=0.01
 
@@ -106,7 +106,7 @@ parse_cli() {
 # ENERGY EXTRACTION
 # ============================================================================
 # Scans all .log and .out files under <TAG>/03_solvent_opt/ for the ORCA
-# energy string.  Outputs "conformer_id  energy_hartree" lines.
+# energy string. Outputs "conformer_id  energy_hartree" lines.
 extract_energies() {
     local tag=$1
     local opt_dir="${tag}/03_solvent_opt"
@@ -136,7 +136,7 @@ process_tag() {
     local raw
     raw=$(extract_energies "$tag") || true
     if [[ -z $raw ]]; then
-        warn "[${tag}] no energies extracted — skipping"
+        warn "[${tag}] no energies extracted -- skipping"
         return
     fi
 
@@ -198,7 +198,7 @@ process_tag() {
 
     local n_keep=0
     [[ -f $lab_file ]] && n_keep=$(wc -l < "$lab_file")
-    log "[${tag}] ${n_keep}/${n_confs} conformers above p ≥ ${p_cut} threshold"
+    log "[${tag}] ${n_keep}/${n_confs} conformers above p >= ${p_cut} threshold"
     log "[${tag}] wrote ${dat_file} and ${lab_file}"
 }
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 2-orca-conf-search.sh — Conformer enumeration with Open Babel Confab
+# 2-orca-conf-search.sh -- Conformer enumeration with Open Babel Confab
 # ============================================================================
 #
 # OVERVIEW
-#   Stage 2 of the ORCA workflow.  For each molecule it:
-#     1. Retrieves the optimised geometry from Stage 1 (or a user-supplied XYZ),
+#   Stage 2 of the ORCA workflow. For each molecule it:
+#     1. Retrieves the optimized geometry from Stage 1 (or a user-supplied XYZ),
 #     2. Converts that geometry to SDF format,
 #     3. Runs Open Babel Confab to generate conformers within an energy window.
 #
 #   Confab operates by systematically rotating torsion angles and evaluating
-#   each resulting geometry with a force field.  Structures above the energy
-#   cutoff are discarded.  For rigid molecules Confab may return only a single
+#   each resulting geometry with a force field. Structures above the energy
+#   cutoff are discarded. For rigid molecules Confab may return only a single
 #   conformer; for flexible molecules it can return hundreds.
 #
 # Usage:
@@ -28,12 +28,12 @@
 #
 # Directory layout (reads from Stage 1, writes to):
 #   <TAG>/
-#   ├── 01_gas_opt/
-#   │   └── <TAG>.xyz              ← input (from Stage 1)
-#   └── 02_conf_search/
-#       ├── <TAG>.xyz              copy of optimised geometry
-#       ├── <TAG>.sdf              SDF conversion
-#       └── <TAG>_combined.sdf     all conformers in one file (run Stage 3 to split)
+#   |-- 01_gas_opt/
+#   |   -- <TAG>.xyz              <- input (from Stage 1)
+#   -- 02_conf_search/
+#       |-- <TAG>.xyz              copy of optimized geometry
+#       |-- <TAG>.sdf              SDF conversion
+#       -- <TAG>_combined.sdf     all conformers in one file (run Stage 3 to split)
 #
 # Examples:
 #   2-orca-conf-search.sh --ecut 10 --conf 500 ephedrine
@@ -106,8 +106,8 @@ parse_cli() {
 # ============================================================================
 # PATH RESOLUTION
 # ============================================================================
-# Look for the optimised XYZ from Stage 1 in the expected location.
-find_optimised_xyz() {
+# Look for the optimized XYZ from Stage 1 in the expected location.
+find_optimized_xyz() {
     local tag=$1
     local probe="${tag}/01_gas_opt/${tag}.xyz"
     if [[ -f $probe ]]; then
@@ -126,7 +126,7 @@ process_tag() {
     local out_dir="${tag}/02_conf_search"
     mkdir -p "$out_dir"
 
-    # copy optimised geometry into the conformer directory
+    # copy optimized geometry into the conformer directory
     local xyz_copy="${out_dir}/${tag}.xyz"
     cp -f "$xyz_path" "$xyz_copy"
 
@@ -140,11 +140,11 @@ process_tag() {
         return
     fi
 
-    # convert XYZ → SDF (Confab requires SDF input)
+    # convert XYZ -> SDF (Confab requires SDF input)
     log "[${tag}] converting to SDF"
     obabel -ixyz "$xyz_copy" -osdf -O "$sdf" 2>/dev/null
     if [[ ! -s $sdf ]]; then
-        warn "[${tag}] SDF conversion produced empty file — skipping"
+        warn "[${tag}] SDF conversion produced empty file -- skipping"
         return
     fi
 
@@ -160,7 +160,7 @@ process_tag() {
 
     local count
     count=$(grep -c '^\$\$\$\$' "$combined" 2>/dev/null || echo 0)
-    log "[${tag}] Confab generated ${count} conformer(s) → ${combined} (run Stage 3 to split)"
+    log "[${tag}] Confab generated ${count} conformer(s) -> ${combined} (run Stage 3 to split)"
 }
 
 # ============================================================================
@@ -200,9 +200,9 @@ main() {
             require_file "$xyz_path"
         else
             tag=$entry
-            xyz_path=$(find_optimised_xyz "$tag")
+            xyz_path=$(find_optimized_xyz "$tag")
             if [[ -z $xyz_path ]]; then
-                warn "[${tag}] optimised XYZ not found in ${tag}/01_gas_opt/ — skipping"
+                warn "[${tag}] optimized XYZ not found in ${tag}/01_gas_opt/ -- skipping"
                 continue
             fi
         fi
