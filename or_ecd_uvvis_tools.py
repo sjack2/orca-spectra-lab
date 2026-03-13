@@ -27,7 +27,7 @@
 #   --uv_fwhm EV       Gaussian FWHM for UV/Vis (eV)       [0.35]
 #   --ecd_fwhm EV      Gaussian FWHM for ECD   (eV)        [0.25]
 #   --stick            Overlay stick spectrum
-#   --flip_x           Plot lambda increasing left -> right
+#   --flip_x           Plot lambda increasing left -> right (short -> long; conventional)
 #   --scale FACTOR     Multiply intensities after weighting [1.0]
 #
 # ============================================================================
@@ -337,7 +337,7 @@ def _cli() -> None:
     parser.add_argument(
         "--flip_x",
         action="store_true",
-        help="Plot long -> short wavelength (e.g. 350 -> 190 nm)",
+        help="Plot short -> long wavelength (e.g. 190 -> 400 nm); default is long -> short",
     )
     parser.add_argument(
         "--scale",
