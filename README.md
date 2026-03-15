@@ -201,6 +201,8 @@ aspirin/
 |       |-- aspirin_2.xyz
 |       `-- ...
 |-- 03_solvent_opt/            Stage 4 - solvent-phase re-optimization
+|   |-- aspirin_conf_list.txt  conformer working-dir list (SLURM array input)
+|   |-- aspirin_array.slurm    SLURM array job script (HPC mode)
 |   |-- aspirin_1/
 |   |   |-- aspirin_1.inp
 |   |   |-- aspirin_1.log
@@ -211,12 +213,16 @@ aspirin/
 |   |-- aspirin_energies.dat   full table (CID, E, dE, p)
 |   `-- aspirin_bw_labels.dat  conformer IDs above threshold
 |-- 05_ecd/                    Stage 6-ecd - TD-DFT excited states
+|   |-- aspirin_conf_list.txt  conformer working-dir list (SLURM array input)
+|   |-- aspirin_array.slurm    SLURM array job script (HPC mode)
 |   |-- aspirin_1/
 |   |   |-- aspirin_1.inp
 |   |   `-- aspirin_1.log
 |   `-- aspirin_2/
 |       `-- ...
 |-- 05_vcd/                    Stage 6-vcd - analytic frequencies
+|   |-- aspirin_conf_list.txt  conformer working-dir list (SLURM array input)
+|   |-- aspirin_array.slurm    SLURM array job script (HPC mode)
 |   |-- aspirin_1/
 |   |   |-- aspirin_1.inp
 |   |   `-- aspirin_1.log
@@ -357,9 +363,12 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 | `--dry-run` | | Write inputs without running | |
 | `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
+| `--max-running N` | | Max concurrent array tasks _(HPC only)_ | `10` |
 
 **Input:** `<TAG>/02_conf_search/split_xyz/` (from Stage 3/3b)
 **Output:** `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (optimized geometry per conformer)
+
+On HPC, all conformers are submitted as a single SLURM job array (`<TAG>_array.slurm`) throttled to `--max-running` concurrent tasks. Use `--max-running` to tune cluster load for large ensembles (e.g., CREST output).
 
 ### 5-orca-boltzmann-weight.sh -- Boltzmann Weighting & Filtering
 
@@ -402,9 +411,12 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 | `--dry-run` | | Write inputs without running | |
 | `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
+| `--max-running N` | | Max concurrent array tasks _(HPC only)_ | `10` |
 
 **Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
 **Output:** `<TAG>/05_ecd/<CID>/<CID>.log` (ORCA TD-DFT output with absorption and CD spectrum blocks)
+
+On HPC, all conformers are submitted as a single SLURM job array (`<TAG>_array.slurm`) throttled to `--max-running` concurrent tasks.
 
 ### 6-orca-vcd.sh -- Analytic Frequency / IR + VCD Calculations
 
@@ -428,9 +440,12 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 | `--dry-run` | | Write inputs without running | |
 | `--partition NAME` | | SLURM partition _(HPC only)_ | `general` |
 | `--time HH:MM:SS` | | SLURM wall-clock limit _(HPC only)_ | `06:00:00` |
+| `--max-running N` | | Max concurrent array tasks _(HPC only)_ | `10` |
 
 **Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
 **Output:** `<TAG>/05_vcd/<CID>/<CID>.log` (ORCA AnFreq output with IR and VCD spectrum blocks)
+
+On HPC, all conformers are submitted as a single SLURM job array (`<TAG>_array.slurm`) throttled to `--max-running` concurrent tasks.
 
 ### or_ecd_uvvis_tools.py -- Electronic Spectral Broadening & Plotting
 
