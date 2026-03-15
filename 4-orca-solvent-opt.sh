@@ -7,7 +7,7 @@
 #   For every conformer produced by Stage 3 (or 3b), this script:
 #     1. Reads charge/multiplicity from the original XYZ in pre_xyz/,
 #     2. Writes an ORCA input with implicit solvent (SMD or pure CPCM),
-#     3. Either runs ORCA directly (--local) or submits a SLURM job.
+#     3. Either runs ORCA directly (--local) or submits a SLURM job array.
 #
 #   Each conformer is optimized independently. In local mode the
 #   conformers are processed sequentially (this can take a while for
@@ -37,6 +37,7 @@
 #   SLURM-only flags (ignored in --local mode):
 #        --partition NAME      SLURM partition                  [general]
 #        --time HH:MM:SS       Wall-clock limit                 [06:00:00]
+#        --max-running N       Max concurrent array tasks       [10]
 #
 # Cluster configuration (cluster.cfg):
 #   Create a file named cluster.cfg in the same directory as this script
@@ -53,11 +54,12 @@
 #   <TAG>/
 #   |-- 02_conf_search/split_xyz/     <- input conformers (from Stage 3/3b)
 #   |-- 03_solvent_opt/
+#   |   |-- <TAG>_conf_list.txt       conformer working-dir list (array input)
+#   |   |-- <TAG>_array.slurm         SLURM array job script
 #   |   |-- <TAG>_001/               one directory per conformer
 #   |   |   |-- <TAG>_001.inp
 #   |   |   |-- <TAG>_001.log
-#   |   |   |-- <TAG>_001.xyz        optimized geometry (ORCA output)
-#   |   |   -- <TAG>_001.slurm      (HPC mode only)
+#   |   |   -- <TAG>_001.xyz        optimized geometry (ORCA output)
 #   |   -- <TAG>_002/
 #   |       -- ...
 #   -- pre_xyz/<TAG>.xyz            must exist for charge/mult
@@ -66,8 +68,11 @@
 #   # Local: optimise all conformers of ephedrine in water
 #   4-orca-solvent-opt.sh --local --cpus 4 --solvent water ephedrine
 #
-#   # HPC: submit all conformers to SLURM
+#   # HPC: submit all conformers as a throttled job array (10 at a time)
 #   4-orca-solvent-opt.sh --solvent acetonitrile --partition gpu aspirin
+#
+#   # HPC: raise concurrency limit for a small ensemble
+#   4-orca-solvent-opt.sh --max-running 4 ephedrine
 #
 #   # Dry run: see how many conformers would be processed
 #   4-orca-solvent-opt.sh --dry-run --local --list molecules.txt
@@ -91,6 +96,7 @@ DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
 DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
+DEFAULT_MAX_RUNNING=10
 
 XYZ_DIR="pre_xyz"
 CONF_SUBDIR="02_conf_search/split_xyz"
@@ -199,6 +205,7 @@ parse_cli() {
     mem_mb=$DEFAULT_MEM_PER_CPU
     partition=${CLUSTER_PARTITION:-$DEFAULT_PARTITION}
     wall=${CLUSTER_WALL:-$DEFAULT_WALL}
+    max_running=${CLUSTER_MAX_RUNNING:-$DEFAULT_MAX_RUNNING}
     dry_run=false
     force_local=false
     list_file=""
@@ -209,7 +216,7 @@ parse_cli() {
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,solvent:,solvent-model:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
+mem-per-cpu:,partition:,time:,max-running:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -226,6 +233,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@"
             --mem-per-cpu)    mem_mb=$2;         shift 2 ;;
             --partition)      partition=$2;       shift 2 ;;
             --time)           wall=$2;           shift 2 ;;
+            --max-running)    max_running=$2;    shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
             --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
@@ -296,26 +304,27 @@ EOF
 }
 
 # ============================================================================
-# SLURM WRITER
+# SLURM ARRAY JOB WRITER
 # ============================================================================
-write_slurm() {
-    local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
-    local abs_workdir orca_dir ompi_dir
-    abs_workdir=$(cd "$workdir" && pwd)
+write_array_slurm() {
+    local tag=$1 conf_list=$2 slurm_file=$3 n=$4
+    local abs_list out_dir orca_dir ompi_dir
+    abs_list=$(cd "$(dirname "$conf_list")" && pwd)/$(basename "$conf_list")
+    out_dir=$(dirname "$abs_list")
     orca_dir=$(dirname "$orca_bin")
     ompi_dir=${ompi_dir_flag:-${OMPI_DIR:-/shares/chem_hlw/orca/openmpi-4.1.6}}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
-#SBATCH --job-name=solv_${cid}
+#SBATCH --job-name=solv_${tag}
 #SBATCH --partition=${partition}
+#SBATCH --array=1-${n}%${max_running}
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --chdir=${abs_workdir}
-#SBATCH --output=${abs_workdir}/slurm-%j.out
-#SBATCH --error=${abs_workdir}/slurm-%j.err
+#SBATCH --output=${out_dir}/slurm-%A_%a.out
+#SBATCH --error=${out_dir}/slurm-%A_%a.err
 
 # ---- ORCA / OpenMPI environment ----
 export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
@@ -323,13 +332,16 @@ export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
 export OPAL_PREFIX="${ompi_dir}"
 export OMPI_MCA_btl="^openib"
 
-"${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
+WORKDIR=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" "${abs_list}")
+CID=\$(basename "\$WORKDIR")
+cd "\$WORKDIR"
+"${orca_bin}" "\${CID}.inp" > "\${CID}.log"
 EOF
     chmod +x "$slurm_file"
 }
 
 # ============================================================================
-# PROCESS ONE CONFORMER
+# PROCESS ONE CONFORMER  (local mode only)
 # ============================================================================
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
@@ -347,18 +359,12 @@ process_conformer() {
         return
     fi
 
-    if [[ $exec_mode == slurm ]]; then
-        local slurm_file="${dir}/${cid}.slurm"
-        write_slurm "$cid" "$inp_file" "$slurm_file" "$dir"
-        (cd "$dir" && sbatch "$(basename "$slurm_file")")
+    log "  [${cid}] running ORCA (solvent=${solvent})"
+    "$orca_bin" "$inp_file" > "$log_file" 2>&1
+    if grep -q "HURRAY\|THE OPTIMIZATION HAS CONVERGED" "$log_file" 2>/dev/null; then
+        log "  [${cid}] converged"
     else
-        log "  [${cid}] running ORCA (solvent=${solvent})"
-        "$orca_bin" "$inp_file" > "$log_file" 2>&1
-        if grep -q "HURRAY\|THE OPTIMIZATION HAS CONVERGED" "$log_file" 2>/dev/null; then
-            log "  [${cid}] converged"
-        else
-            warn "  [${cid}] convergence not confirmed -- check ${log_file}"
-        fi
+        warn "  [${cid}] convergence not confirmed -- check ${log_file}"
     fi
 }
 
@@ -396,11 +402,42 @@ process_tag() {
 
     log "[${tag}] found ${n} conformers (charge=${charge}, mult=${mult})"
 
-    for xyz in "${xyz_files[@]}"; do
-        local cid
-        cid=$(basename "$xyz" .xyz)
-        process_conformer "$tag" "$cid" "$xyz"
-    done
+    if [[ $exec_mode == slurm ]]; then
+        # Phase 1: write all ORCA inputs, collect absolute working dirs
+        local out_dir="${tag}/03_solvent_opt"
+        mkdir -p "$out_dir"
+        local conf_dirs=()
+        for xyz in "${xyz_files[@]}"; do
+            local cid
+            cid=$(basename "$xyz" .xyz)
+            local dir="${tag}/03_solvent_opt/${cid}"
+            mkdir -p "$dir"
+            write_orca_input "$cid" "$xyz" "${dir}/${cid}.inp"
+            if $dry_run; then
+                log "  [${cid}] dry run -- input written to ${dir}/${cid}.inp"
+            else
+                conf_dirs+=("$(cd "$dir" && pwd)")
+            fi
+        done
+
+        $dry_run && return
+
+        # Phase 2: write conformer list, submit single throttled array job
+        local conf_list="${out_dir}/${tag}_conf_list.txt"
+        printf '%s\n' "${conf_dirs[@]}" > "$conf_list"
+
+        local array_slurm="${out_dir}/${tag}_array.slurm"
+        write_array_slurm "$tag" "$conf_list" "$array_slurm" "$n"
+        local jid
+        jid=$(sbatch --parsable "$array_slurm")
+        log "[${tag}] submitted array job ${jid} (${n} conformers, max ${max_running} concurrent)"
+    else
+        for xyz in "${xyz_files[@]}"; do
+            local cid
+            cid=$(basename "$xyz" .xyz)
+            process_conformer "$tag" "$cid" "$xyz"
+        done
+    fi
 }
 
 # ============================================================================
@@ -423,6 +460,7 @@ print_banner() {
  SCF MaxIter : ${max_iter}
  Cores       : ${cpus}
  MaxCore     : ${mem_mb} MB/core
+ Max running : ${max_running} (SLURM array throttle)
  Dry run     : ${dry_run}
 =============================================================
 EOF

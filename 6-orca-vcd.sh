@@ -6,7 +6,7 @@
 # OVERVIEW
 #   For every conformer that passed the Boltzmann filter (Stage 5), this
 #   script builds an ORCA analytic-frequency input requesting VCD with
-#   implicit solvent and either runs it locally or submits a SLURM job.
+#   implicit solvent and either runs it locally or submits a SLURM job array.
 #
 #   The resulting outputs contain IR absorption intensities and VCD
 #   rotatory strengths for all normal modes. Post-process with
@@ -39,6 +39,7 @@
 #   SLURM-only flags (ignored in --local mode):
 #        --partition NAME      SLURM partition                  [general]
 #        --time HH:MM:SS       Wall-clock limit                 [06:00:00]
+#        --max-running N       Max concurrent array tasks       [10]
 #
 # Cluster configuration (cluster.cfg):
 #   Create a file named cluster.cfg in the same directory as this script
@@ -51,10 +52,11 @@
 #   |-- 04_boltzmann/<TAG>_bw_labels.dat     <- conformer list (from Stage 5)
 #   |-- 03_solvent_opt/<CID>/<CID>.xyz        <- geometries (from Stage 4)
 #   -- 05_vcd/
+#       |-- <TAG>_conf_list.txt              conformer working-dir list (array input)
+#       |-- <TAG>_array.slurm               SLURM array job script
 #       |-- <CID>/
-#       |   |-- <CID>.inp                  ORCA AnFreq input
-#       |   |-- <CID>.log                  ORCA output
-#       |   -- <CID>.slurm               (HPC mode only)
+#       |   |-- <CID>.inp                   ORCA AnFreq input
+#       |   |-- <CID>.log                   ORCA output
 #       -- ...
 #
 # Post-processing:
@@ -65,8 +67,11 @@
 #   # Local: compute IR/VCD for all populated conformers of ephedrine
 #   6-orca-vcd.sh --local --cpus 4 --solvent water ephedrine
 #
-#   # HPC: submit with dispersion-corrected B3LYP
+#   # HPC: submit with dispersion-corrected B3LYP, 10 at a time
 #   6-orca-vcd.sh --method B3LYP --disp D3BJ --partition gpu aspirin
+#
+#   # HPC: tighter concurrency for a large ensemble
+#   6-orca-vcd.sh --max-running 5 methyloxirane
 #
 #   # Dry run: inspect inputs
 #   6-orca-vcd.sh --dry-run --local --list molecules.txt
@@ -89,6 +94,7 @@ DEFAULT_GRID=3
 DEFAULT_MEM_PER_CPU=2048
 DEFAULT_PARTITION="general"
 DEFAULT_WALL="06:00:00"
+DEFAULT_MAX_RUNNING=10
 
 XYZ_DIR="pre_xyz"
 
@@ -197,6 +203,7 @@ parse_cli() {
     mem_mb=$DEFAULT_MEM_PER_CPU
     partition=${CLUSTER_PARTITION:-$DEFAULT_PARTITION}
     wall=${CLUSTER_WALL:-$DEFAULT_WALL}
+    max_running=${CLUSTER_MAX_RUNNING:-$DEFAULT_MAX_RUNNING}
     dry_run=false
     force_local=false
     list_file=""
@@ -207,7 +214,7 @@ parse_cli() {
     local opts
     opts=$(getopt -o hb:m:c:g: \
         --long help,basis:,method:,disp:,solvent:,max-iter:,cpus:,grid:,\
-mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
+mem-per-cpu:,partition:,time:,max-running:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
 
@@ -223,6 +230,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@"
             --mem-per-cpu)    mem_mb=$2;         shift 2 ;;
             --partition)      partition=$2;       shift 2 ;;
             --time)           wall=$2;           shift 2 ;;
+            --max-running)    max_running=$2;    shift 2 ;;
             --list)           list_file=$2;      shift 2 ;;
             --orca-bin)       orca_bin_flag=$2;  shift 2 ;;
             --openmpi-dir)    ompi_dir_flag=$2;  shift 2 ;;
@@ -280,26 +288,27 @@ EOF
 }
 
 # ============================================================================
-# SLURM WRITER
+# SLURM ARRAY JOB WRITER
 # ============================================================================
-write_slurm() {
-    local cid=$1 inp_file=$2 slurm_file=$3 workdir=$4
-    local abs_workdir orca_dir ompi_dir
-    abs_workdir=$(cd "$workdir" && pwd)
+write_array_slurm() {
+    local tag=$1 conf_list=$2 slurm_file=$3 n=$4
+    local abs_list out_dir orca_dir ompi_dir
+    abs_list=$(cd "$(dirname "$conf_list")" && pwd)/$(basename "$conf_list")
+    out_dir=$(dirname "$abs_list")
     orca_dir=$(dirname "$orca_bin")
     ompi_dir=${ompi_dir_flag:-${OMPI_DIR:-/shares/chem_hlw/orca/openmpi-4.1.6}}
 
     cat >"$slurm_file" <<EOF
 #!/usr/bin/env bash
-#SBATCH --job-name=vcd_${cid}
+#SBATCH --job-name=vcd_${tag}
 #SBATCH --partition=${partition}
+#SBATCH --array=1-${n}%${max_running}
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=${cpus}
 #SBATCH --mem-per-cpu=${mem_mb}
 #SBATCH --time=${wall}
-#SBATCH --chdir=${abs_workdir}
-#SBATCH --output=${abs_workdir}/slurm-%j.out
-#SBATCH --error=${abs_workdir}/slurm-%j.err
+#SBATCH --output=${out_dir}/slurm-%A_%a.out
+#SBATCH --error=${out_dir}/slurm-%A_%a.err
 
 # ---- ORCA / OpenMPI environment ----
 export PATH="${ompi_dir}/bin:${orca_dir}:\$PATH"
@@ -307,13 +316,16 @@ export LD_LIBRARY_PATH="${ompi_dir}/lib:${orca_dir}:\$LD_LIBRARY_PATH"
 export OPAL_PREFIX="${ompi_dir}"
 export OMPI_MCA_btl="^openib"
 
-"${orca_bin}" "${abs_workdir}/${cid}.inp" > "${abs_workdir}/${cid}.log"
+WORKDIR=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" "${abs_list}")
+CID=\$(basename "\$WORKDIR")
+cd "\$WORKDIR"
+"${orca_bin}" "\${CID}.inp" > "\${CID}.log"
 EOF
     chmod +x "$slurm_file"
 }
 
 # ============================================================================
-# PROCESS ONE CONFORMER
+# PROCESS ONE CONFORMER  (local mode only)
 # ============================================================================
 process_conformer() {
     local tag=$1 cid=$2 xyz_file=$3
@@ -331,18 +343,12 @@ process_conformer() {
         return
     fi
 
-    if [[ $exec_mode == slurm ]]; then
-        local slurm_file="${dir}/${cid}.slurm"
-        write_slurm "$cid" "$inp_file" "$slurm_file" "$dir"
-        (cd "$dir" && sbatch "$(basename "$slurm_file")")
+    log "  [${cid}] running AnFreq (VCD, solvent=${solvent})"
+    "$orca_bin" "$inp_file" > "$log_file" 2>&1
+    if grep -q "VIBRATIONAL FREQUENCIES\|VCD SPECTRUM" "$log_file" 2>/dev/null; then
+        log "  [${cid}] frequency calculation completed successfully"
     else
-        log "  [${cid}] running AnFreq (VCD, solvent=${solvent})"
-        "$orca_bin" "$inp_file" > "$log_file" 2>&1
-        if grep -q "VIBRATIONAL FREQUENCIES\|VCD SPECTRUM" "$log_file" 2>/dev/null; then
-            log "  [${cid}] frequency calculation completed successfully"
-        else
-            warn "  [${cid}] expected output blocks not found -- check ${log_file}"
-        fi
+        warn "  [${cid}] expected output blocks not found -- check ${log_file}"
     fi
 }
 
@@ -378,18 +384,61 @@ process_tag() {
 
     log "[${tag}] ${#cids[@]} conformers to process (charge=${charge}, mult=${mult})"
 
-    for cid in "${cids[@]}"; do
-        cid=$(echo "$cid" | xargs)  # trim whitespace
-        [[ -z $cid ]] && continue
+    if [[ $exec_mode == slurm ]]; then
+        # Phase 1: write all ORCA inputs, collect absolute working dirs
+        local out_dir="${tag}/05_vcd"
+        mkdir -p "$out_dir"
+        local conf_dirs=()
+        for cid in "${cids[@]}"; do
+            cid=$(echo "$cid" | xargs)  # trim whitespace
+            [[ -z $cid ]] && continue
 
-        # look for the solvent-optimized geometry
-        local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
-        if [[ ! -f $xyz ]]; then
-            warn "  [${cid}] solvent-optimized XYZ not found -- skipping"
-            continue
+            local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
+            if [[ ! -f $xyz ]]; then
+                warn "  [${cid}] solvent-optimized XYZ not found -- skipping"
+                continue
+            fi
+
+            local dir="${tag}/05_vcd/${cid}"
+            mkdir -p "$dir"
+            write_orca_input "$cid" "$xyz" "${dir}/${cid}.inp"
+            if $dry_run; then
+                log "  [${cid}] dry run -- input written to ${dir}/${cid}.inp"
+            else
+                conf_dirs+=("$(cd "$dir" && pwd)")
+            fi
+        done
+
+        $dry_run && return
+
+        local n=${#conf_dirs[@]}
+        if (( n == 0 )); then
+            warn "[${tag}] no valid conformers to submit"
+            return
         fi
-        process_conformer "$tag" "$cid" "$xyz"
-    done
+
+        # Phase 2: write conformer list, submit single throttled array job
+        local conf_list="${out_dir}/${tag}_conf_list.txt"
+        printf '%s\n' "${conf_dirs[@]}" > "$conf_list"
+
+        local array_slurm="${out_dir}/${tag}_array.slurm"
+        write_array_slurm "$tag" "$conf_list" "$array_slurm" "$n"
+        local jid
+        jid=$(sbatch --parsable "$array_slurm")
+        log "[${tag}] submitted array job ${jid} (${n} conformers, max ${max_running} concurrent)"
+    else
+        for cid in "${cids[@]}"; do
+            cid=$(echo "$cid" | xargs)  # trim whitespace
+            [[ -z $cid ]] && continue
+
+            local xyz="${tag}/03_solvent_opt/${cid}/${cid}.xyz"
+            if [[ ! -f $xyz ]]; then
+                warn "  [${cid}] solvent-optimized XYZ not found -- skipping"
+                continue
+            fi
+            process_conformer "$tag" "$cid" "$xyz"
+        done
+    fi
 }
 
 # ============================================================================
@@ -411,6 +460,7 @@ print_banner() {
  SCF MaxIter : ${max_iter}
  Cores       : ${cpus}
  MaxCore     : ${mem_mb} MB/core
+ Max running : ${max_running} (SLURM array throttle)
  Dry run     : ${dry_run}
 =============================================================
 EOF
