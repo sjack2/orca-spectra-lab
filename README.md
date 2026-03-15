@@ -12,7 +12,7 @@ A modular Bash/Python workflow for computing UV-Vis absorption, electronic circu
 - **Dual execution mode:** every ORCA-calling script auto-detects whether SLURM is available. Pass `--local` to force direct execution; omit it on a cluster and jobs are submitted via `sbatch`.
 - **Two conformer search paths:** Open Babel Confab (fast, force-field-based) or CREST (GFN2-xTB metadynamics, more thorough).
 - **Boltzmann-weighted spectral averaging** with configurable temperature and population threshold.
-- **Physically correct broadening:** Gaussian convolution in energy space (eV) for electronic spectra and in wavenumber space (cm⁻¹) for vibrational spectra, with Jacobian correction for ECD. Produces both PNG/PDF plots and CSV data tables.
+- **Physically correct broadening:** Gaussian convolution in energy space (eV) for electronic spectra and in wavenumber space (cm-1) for vibrational spectra, with Jacobian correction for ECD. Produces both PNG/PDF plots and CSV data tables.
 - **`--dry-run` on every script** to inspect generated ORCA inputs without running any calculations.
 
 ---
@@ -21,29 +21,29 @@ A modular Bash/Python workflow for computing UV-Vis absorption, electronic circu
 
 ```
 Stage 1                    Gas-phase geometry optimization
-  │                        1-orca-init-opt.sh
-  ▼
+  |                        1-orca-init-opt.sh
+  v
 Stage 2                    Conformer enumeration
-  │                        2-orca-conf-search.sh  (Confab)
-  │                   or   2b-crest-conf-search.sh (CREST)
-  ▼
+  |                        2-orca-conf-search.sh  (Confab)
+  |                   or   2b-crest-conf-search.sh (CREST)
+  v
 Stage 3                    Split conformers into individual XYZ files
-  │                        3-orca-conf-split.sh   (Confab output)
-  │                   or   3b-crest-conf-split.sh  (CREST output)
-  ▼
+  |                        3-orca-conf-split.sh   (Confab output)
+  |                   or   3b-crest-conf-split.sh  (CREST output)
+  v
 Stage 4                    Solvent-phase re-optimization (SMD/CPCM)
-  │                        4-orca-solvent-opt.sh
-  ▼
+  |                        4-orca-solvent-opt.sh
+  v
 Stage 5                    Boltzmann weighting & filtering
-  │                        5-orca-boltzmann-weight.sh
-  │
-  ├──────────────────────────────────────────┐
-  ▼                                          ▼
+  |                        5-orca-boltzmann-weight.sh
+  |
+  |------------------------------------------+
+  v                                          v
 Stage 6-ecd                              Stage 6-vcd
   TD-DFT excited-state calculations        Analytic frequency calculations
   6-orca-ecd.sh                            6-orca-vcd.sh
-  │                                          │
-  ▼                                          ▼
+  |                                          |
+  v                                          v
 Plot                                     Plot
   Broadened UV-Vis & ECD spectra           Broadened IR & VCD spectra
   or_ecd_uvvis_tools.py                    or_vcd_ir_tools.py
@@ -62,10 +62,10 @@ See [INSTALL.md](INSTALL.md) for detailed instructions. In brief, you need:
 | Software | Version | Purpose |
 |----------|---------|---------|
 | ORCA | 6.0+ | Quantum chemistry engine |
-| OpenMPI | ≥ 4.0 | Parallel execution for ORCA |
-| Open Babel | ≥ 3.0 | File conversion & Confab conformer search |
-| Python 3 | ≥ 3.8 | Plotting tools |
-| CREST | ≥ 2.12 | _(optional)_ GFN2-xTB conformer search |
+| OpenMPI | >= 4.0 | Parallel execution for ORCA |
+| Open Babel | >= 3.0 | File conversion & Confab conformer search |
+| Python 3 | >= 3.8 | Plotting tools |
+| CREST | >= 2.12 | _(optional)_ GFN2-xTB conformer search |
 
 ### 2. Clone the repository
 
@@ -188,46 +188,46 @@ Every script follows the same directory convention. For a molecule tagged `aspir
 
 ```
 aspirin/
-├── 01_gas_opt/                Stage 1 - gas-phase optimization
-│   ├── aspirin.inp
-│   ├── aspirin.log
-│   └── aspirin.xyz            optimized geometry
-├── 02_conf_search/            Stage 2 - conformer enumeration (Confab or CREST)
-│   ├── aspirin.xyz            copy of Stage 1 geometry
-│   ├── aspirin_combined.sdf   all conformers (Confab output)
-│   ├── split_sdf/             individual SDF files (Stage 3 writes these)
-│   └── split_xyz/             individual conformer XYZ files (Stage 3 writes these)
-│       ├── aspirin_1.xyz
-│       ├── aspirin_2.xyz
-│       └── ...
-├── 03_solvent_opt/            Stage 4 - solvent-phase re-optimization
-│   ├── aspirin_1/
-│   │   ├── aspirin_1.inp
-│   │   ├── aspirin_1.log
-│   │   └── aspirin_1.xyz      optimized geometry per conformer
-│   └── aspirin_2/
-│       └── ...
-├── 04_boltzmann/              Stage 5 - Boltzmann weighting
-│   ├── aspirin_energies.dat   full table (CID, E, ΔE, p)
-│   └── aspirin_bw_labels.dat  conformer IDs above threshold
-├── 05_ecd/                    Stage 6-ecd - TD-DFT excited states
-│   ├── aspirin_1/
-│   │   ├── aspirin_1.inp
-│   │   └── aspirin_1.log
-│   └── aspirin_2/
-│       └── ...
-├── 05_vcd/                    Stage 6-vcd - analytic frequencies
-│   ├── aspirin_1/
-│   │   ├── aspirin_1.inp
-│   │   └── aspirin_1.log
-│   └── aspirin_2/
-│       └── ...
-└── 06_spectra/                Plotting outputs
-    ├── aspirin_uvvis.png
-    ├── aspirin_ecd.png
-    ├── aspirin_ir.png
-    ├── aspirin_vcd.png
-    └── *.csv / *.pdf
+|-- 01_gas_opt/                Stage 1 - gas-phase optimization
+|   |-- aspirin.inp
+|   |-- aspirin.log
+|   `-- aspirin.xyz            optimized geometry
+|-- 02_conf_search/            Stage 2 - conformer enumeration (Confab or CREST)
+|   |-- aspirin.xyz            copy of Stage 1 geometry
+|   |-- aspirin_combined.sdf   all conformers (Confab output)
+|   |-- split_sdf/             individual SDF files (Stage 3 writes these)
+|   `-- split_xyz/             individual conformer XYZ files (Stage 3 writes these)
+|       |-- aspirin_1.xyz
+|       |-- aspirin_2.xyz
+|       `-- ...
+|-- 03_solvent_opt/            Stage 4 - solvent-phase re-optimization
+|   |-- aspirin_1/
+|   |   |-- aspirin_1.inp
+|   |   |-- aspirin_1.log
+|   |   `-- aspirin_1.xyz      optimized geometry per conformer
+|   `-- aspirin_2/
+|       `-- ...
+|-- 04_boltzmann/              Stage 5 - Boltzmann weighting
+|   |-- aspirin_energies.dat   full table (CID, E, dE, p)
+|   `-- aspirin_bw_labels.dat  conformer IDs above threshold
+|-- 05_ecd/                    Stage 6-ecd - TD-DFT excited states
+|   |-- aspirin_1/
+|   |   |-- aspirin_1.inp
+|   |   `-- aspirin_1.log
+|   `-- aspirin_2/
+|       `-- ...
+|-- 05_vcd/                    Stage 6-vcd - analytic frequencies
+|   |-- aspirin_1/
+|   |   |-- aspirin_1.inp
+|   |   `-- aspirin_1.log
+|   `-- aspirin_2/
+|       `-- ...
+`-- 06_spectra/                Plotting outputs
+    |-- aspirin_uvvis.png
+    |-- aspirin_ecd.png
+    |-- aspirin_ir.png
+    |-- aspirin_vcd.png
+    `-- *.csv / *.pdf
 ```
 
 **Note:** Stage 2 only generates the combined SDF/XYZ ensemble. Stage 3 (or 3b) is always required to split that output into the per-conformer XYZ files consumed by Stage 4.
@@ -236,10 +236,10 @@ Starting geometries live in `pre_xyz/`:
 
 ```
 pre_xyz/
-├── aspirin.xyz
-├── pna.xyz
-├── ephedrine.xyz
-└── methyloxirane.xyz
+|-- aspirin.xyz
+|-- pna.xyz
+|-- ephedrine.xyz
+`-- methyloxirane.xyz
 ```
 
 ---
@@ -248,7 +248,7 @@ pre_xyz/
 
 All scripts accept `--help` for full usage. Flags shown with `[default]`.
 
-### 1-orca-init-opt.sh - Gas-Phase Geometry Optimization
+### 1-orca-init-opt.sh -- Gas-Phase Geometry Optimization
 
 ```
 1-orca-init-opt.sh [OPTIONS] TAG [TAG ...]
@@ -273,7 +273,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 
 **Output:** `<TAG>/01_gas_opt/<TAG>.xyz` (optimized geometry)
 
-### 2-orca-conf-search.sh - Confab Conformer Search
+### 2-orca-conf-search.sh -- Confab Conformer Search
 
 ```
 2-orca-conf-search.sh [OPTIONS] TAG [TAG ...]
@@ -288,7 +288,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 
 **Output:** `<TAG>/02_conf_search/<TAG>_combined.sdf`
 
-### 2b-crest-conf-search.sh - CREST Conformer Search
+### 2b-crest-conf-search.sh -- CREST Conformer Search
 
 ```
 2b-crest-conf-search.sh [OPTIONS] TAG [TAG ...]
@@ -307,7 +307,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 
 **Output:** `<TAG>/02_conf_search/crest_conformers.xyz`
 
-### 3-orca-conf-split.sh - Split Confab Output
+### 3-orca-conf-split.sh -- Split Confab Output
 
 ```
 3-orca-conf-split.sh [OPTIONS] TAG [TAG ...]
@@ -321,7 +321,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 **Input:** `<TAG>/02_conf_search/<TAG>_combined.sdf`
 **Output:** `<TAG>/02_conf_search/split_xyz/<TAG>_N.xyz`
 
-### 3b-crest-conf-split.sh - Split CREST Output
+### 3b-crest-conf-split.sh -- Split CREST Output
 
 ```
 3b-crest-conf-split.sh [OPTIONS] TAG [TAG ...]
@@ -335,7 +335,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 **Input:** `<TAG>/02_conf_search/crest_conformers.xyz`
 **Output:** `<TAG>/02_conf_search/split_xyz/<TAG>_NNN.xyz` (zero-padded)
 
-### 4-orca-solvent-opt.sh - Solvent-Phase Re-optimization
+### 4-orca-solvent-opt.sh -- Solvent-Phase Re-optimization
 
 ```
 4-orca-solvent-opt.sh [OPTIONS] TAG [TAG ...]
@@ -361,7 +361,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 **Input:** `<TAG>/02_conf_search/split_xyz/` (from Stage 3/3b)
 **Output:** `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (optimized geometry per conformer)
 
-### 5-orca-boltzmann-weight.sh - Boltzmann Weighting & Filtering
+### 5-orca-boltzmann-weight.sh -- Boltzmann Weighting & Filtering
 
 ```
 5-orca-boltzmann-weight.sh [OPTIONS] TAG [TAG ...]
@@ -379,7 +379,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 - `<TAG>/04_boltzmann/<TAG>_energies.dat` - full table: conformer ID, energy (Hartree), relative energy (kcal/mol), Boltzmann probability
 - `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` - conformer IDs above the probability cutoff
 
-### 6-orca-ecd.sh - TD-DFT Excited-State Calculations
+### 6-orca-ecd.sh -- TD-DFT Excited-State Calculations
 
 ```
 6-orca-ecd.sh [OPTIONS] TAG [TAG ...]
@@ -406,7 +406,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 **Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
 **Output:** `<TAG>/05_ecd/<CID>/<CID>.log` (ORCA TD-DFT output with absorption and CD spectrum blocks)
 
-### 6-orca-vcd.sh - Analytic Frequency / IR + VCD Calculations
+### 6-orca-vcd.sh -- Analytic Frequency / IR + VCD Calculations
 
 ```
 6-orca-vcd.sh [OPTIONS] TAG [TAG ...]
@@ -432,7 +432,7 @@ All scripts accept `--help` for full usage. Flags shown with `[default]`.
 **Input:** `<TAG>/04_boltzmann/<TAG>_bw_labels.dat` (from Stage 5) + `<TAG>/03_solvent_opt/<CID>/<CID>.xyz` (from Stage 4)
 **Output:** `<TAG>/05_vcd/<CID>/<CID>.log` (ORCA AnFreq output with IR and VCD spectrum blocks)
 
-### or_ecd_uvvis_tools.py - Electronic Spectral Broadening & Plotting
+### or_ecd_uvvis_tools.py -- Electronic Spectral Broadening & Plotting
 
 ```
 or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
@@ -445,6 +445,7 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 | `--bw PATH` | Boltzmann weight file (`_energies.dat` from Stage 5) | _equal weights_ |
 | `--outdir TAG` | Molecule directory; outputs go to `<TAG>/06_spectra/<TAG>_*` | |
 | `--prefix STR` | Explicit output prefix (overrides `--outdir`) | `spectra` |
+| `--title STR` | Plot title (overrides auto-generated title) | _derived from prefix_ |
 | `--uv_fwhm EV` | Gaussian FWHM for UV-Vis (eV) | `0.35` |
 | `--ecd_fwhm EV` | Gaussian FWHM for ECD (eV) | `0.25` |
 | `--xlim MIN MAX` | Wavelength range (nm) | _auto_ |
@@ -457,7 +458,7 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 
 **Output:** `<TAG>/06_spectra/<TAG>_uvvis.png/.pdf/.csv`, `<TAG>/06_spectra/<TAG>_ecd.png/.pdf/.csv`
 
-### or_vcd_ir_tools.py - Vibrational Spectral Broadening & Plotting
+### or_vcd_ir_tools.py -- Vibrational Spectral Broadening & Plotting
 
 ```
 or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
@@ -470,9 +471,10 @@ or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
 | `--bw PATH` | Boltzmann weight file (`_energies.dat` from Stage 5) | _equal weights_ |
 | `--outdir TAG` | Molecule directory; outputs go to `<TAG>/06_spectra/<TAG>_*` | |
 | `--prefix STR` | Explicit output prefix (overrides `--outdir`) | `vib` |
-| `--ir_fwhm CM` | Gaussian FWHM for IR (cm⁻¹) | `10` |
-| `--vcd_fwhm CM` | Gaussian FWHM for VCD (cm⁻¹) | `6` |
-| `--xlim MIN MAX` | Wavenumber range (cm⁻¹) | _auto_ |
+| `--title STR` | Plot title (overrides auto-generated title) | _derived from prefix_ |
+| `--ir_fwhm CM` | Gaussian FWHM for IR (cm-1) | `10` |
+| `--vcd_fwhm CM` | Gaussian FWHM for VCD (cm-1) | `6` |
+| `--xlim MIN MAX` | Wavenumber range (cm-1) | _auto_ |
 | `--ir_ylim YMIN YMAX` | IR y-axis limits | _auto_ |
 | `--vcd_ylim YMIN YMAX` | VCD y-axis limits | _auto_ |
 | `--stick` | Overlay stick spectrum | _off_ |
@@ -508,11 +510,11 @@ The `--method` flag accepts any ORCA-recognized functional keyword. Common choic
 | B3LYP | Hybrid GGA | 20% | Geometry optimization, IR/VCD frequencies |
 | PBE0 | Hybrid GGA | 25% | Slightly better than B3LYP for many properties |
 | CAM-B3LYP | Range-separated | 19-65% | Charge-transfer excitations, ECD |
-| ωB97X-D3 | Range-separated | 22-100% | TD-DFT benchmark standard |
+| wB97X-D3 | Range-separated | 22-100% | TD-DFT benchmark standard |
 | M06-2X | Hybrid meta-GGA | 54% | Main-group thermochemistry |
 | r2SCAN | Meta-GGA | 0% | Modern general-purpose |
 
-**Note on VCD:** For vibrational spectra, B3LYP is the most extensively benchmarked functional and is generally recommended as a starting point. Range-separated hybrids (CAM-B3LYP, ωB97X-D3) offer no systematic advantage for harmonic frequencies and are significantly more expensive for analytic Hessian calculations.
+**Note on VCD:** For vibrational spectra, B3LYP is the most extensively benchmarked functional and is generally recommended as a starting point. Range-separated hybrids (CAM-B3LYP, wB97X-D3) offer no systematic advantage for harmonic frequencies and are significantly more expensive for analytic Hessian calculations.
 
 ### Basis Sets
 
@@ -520,10 +522,10 @@ The `--basis` flag accepts one or more ORCA basis set keywords (space-separated,
 
 | Basis | Quality | Typical Use |
 |-------|---------|-------------|
-| `def2-SVP def2/J` | Double-ζ | Geometry optimization |
-| `def2-TZVP def2/J` | Triple-ζ | TD-DFT and frequency production runs |
-| `def2-TZVPP def2/J` | Triple-ζ + extra polarization | Basis set convergence checks |
-| `def2-QZVP def2/J` | Quadruple-ζ | Near-complete basis limit |
+| `def2-SVP def2/J` | Double-zeta | Geometry optimization |
+| `def2-TZVP def2/J` | Triple-zeta | TD-DFT and frequency production runs |
+| `def2-TZVPP def2/J` | Triple-zeta + extra polarization | Basis set convergence checks |
+| `def2-QZVP def2/J` | Quadruple-zeta | Near-complete basis limit |
 
 ### Solvents
 
@@ -537,7 +539,7 @@ The `--disp` flag controls how dispersion is applied:
 
 | Value | Behavior |
 |-------|-----------|
-| `auto` _(default)_ | Detects whether the functional already includes dispersion (e.g., ωB97X-**D3**, B97-**D**). If not, adds D3BJ. |
+| `auto` _(default)_ | Detects whether the functional already includes dispersion (e.g., wB97X-**D3**, B97-**D**). If not, adds D3BJ. |
 | `none` | No dispersion correction. |
 | `D3BJ` | Grimme's D3 with Becke-Johnson damping. |
 | `D4` | Grimme's D4 dispersion. |
