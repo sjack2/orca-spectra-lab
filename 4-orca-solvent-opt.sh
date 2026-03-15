@@ -6,7 +6,7 @@
 # OVERVIEW
 #   For every conformer produced by Stage 3 (or 3b), this script:
 #     1. Reads charge/multiplicity from the original XYZ in pre_xyz/,
-#     2. Writes an ORCA input with implicit solvent (SMD via CPCM),
+#     2. Writes an ORCA input with implicit solvent (SMD or pure CPCM),
 #     3. Either runs ORCA directly (--local) or submits a SLURM job.
 #
 #   Each conformer is optimized independently. In local mode the
@@ -22,7 +22,8 @@
 #   -m | --method NAME         DFT functional                  [B3LYP]
 #   -b | --basis NAME          Basis set                       [def2-TZVP def2/J]
 #        --disp KW             Dispersion: auto|none|D3BJ|D4   [auto]
-#        --solvent NAME        SMD solvent keyword              [water]
+#        --solvent NAME        Solvent name for implicit model   [water]
+#        --solvent-model NAME  Implicit solvent model: smd|cpcm  [smd]
 #        --max-iter N          SCF iteration limit              [150]
 #   -c | --cpus N              CPU cores (%pal + SLURM)        [4]
 #   -g | --grid N              DEFGRID level (1-3)             [3]
@@ -83,6 +84,7 @@ DEFAULT_METHOD="B3LYP"
 DEFAULT_BASIS="def2-TZVP def2/J"
 DEFAULT_DISP="auto"
 DEFAULT_SOLVENT="water"
+DEFAULT_SOLVENT_MODEL="smd"
 DEFAULT_MAX_ITER=150
 DEFAULT_CPUS=4
 DEFAULT_GRID=3
@@ -190,6 +192,7 @@ parse_cli() {
     basis=$DEFAULT_BASIS
     disp_mode=$DEFAULT_DISP
     solvent=$DEFAULT_SOLVENT
+    solvent_model=$DEFAULT_SOLVENT_MODEL
     max_iter=$DEFAULT_MAX_ITER
     cpus=$DEFAULT_CPUS
     grid=$DEFAULT_GRID
@@ -205,7 +208,7 @@ parse_cli() {
 
     local opts
     opts=$(getopt -o hb:m:c:g: \
-        --long help,basis:,method:,disp:,solvent:,max-iter:,cpus:,grid:,\
+        --long help,basis:,method:,disp:,solvent:,solvent-model:,max-iter:,cpus:,grid:,\
 mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@") \
         || die "Failed to parse options (try --help)"
     eval set -- "$opts"
@@ -216,6 +219,7 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@"
             -b|--basis)       basis=$2;          shift 2 ;;
             --disp)           disp_mode=$2;      shift 2 ;;
             --solvent)        solvent=$2;         shift 2 ;;
+            --solvent-model)  solvent_model=$2;  shift 2 ;;
             --max-iter)       max_iter=$2;       shift 2 ;;
             -c|--cpus)        cpus=$2;           shift 2 ;;
             -g|--grid)        grid=$2;           shift 2 ;;
@@ -243,6 +247,8 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@"
 
     (( grid < 1 )) && grid=1 || true
     (( grid > 3 )) && grid=3 || true
+    [[ $solvent_model == smd || $solvent_model == cpcm ]] \
+        || die "--solvent-model must be 'smd' or 'cpcm'"
 }
 
 # ============================================================================
@@ -250,11 +256,18 @@ mem-per-cpu:,partition:,time:,list:,orca-bin:,openmpi-dir:,local,dry-run -- "$@"
 # ============================================================================
 write_orca_input() {
     local cid=$1 xyz_file=$2 inp_file=$3
-    local disp
+    local disp cpcm_kw
     disp=$(disp_keyword)
 
+    # SMD uses the bare CPCM keyword + %cpcm block; pure CPCM uses inline solvent name
+    if [[ $solvent_model == smd ]]; then
+        cpcm_kw="CPCM"
+    else
+        cpcm_kw="CPCM(${solvent})"
+    fi
+
     cat >"$inp_file" <<EOF
-! ${method} ${basis} Opt TightSCF RIJCOSX DEFGRID${grid}${disp} CPCM
+! ${method} ${basis} Opt TightSCF RIJCOSX DEFGRID${grid}${disp} ${cpcm_kw}
 
 %scf
     MaxIter ${max_iter}
@@ -263,11 +276,19 @@ end
 %pal nprocs ${cpus} end
 %maxcore ${mem_mb}
 
+EOF
+
+    if [[ $solvent_model == smd ]]; then
+        cat >>"$inp_file" <<EOF
 %cpcm
     SMD true
     SMDsolvent "${solvent}"
 end
 
+EOF
+    fi
+
+    cat >>"$inp_file" <<EOF
 * xyz ${charge} ${mult}
 $(tail -n +3 "$xyz_file")
 *
@@ -386,8 +407,9 @@ process_tag() {
 # SUMMARY BANNER
 # ============================================================================
 print_banner() {
-    local disp
+    local disp smodel_label
     disp=$(disp_keyword)
+    [[ $solvent_model == smd ]] && smodel_label="SMD via CPCM" || smodel_label="CPCM"
     cat >&2 <<EOF
 =============================================================
  Stage 4: Solvent-Phase Geometry Optimization
@@ -396,7 +418,7 @@ print_banner() {
  ORCA binary : ${orca_bin}
  Method      : ${method}${disp}
  Basis       : ${basis}
- Solvent     : ${solvent} (SMD via CPCM)
+ Solvent     : ${solvent} (${smodel_label})
  DEFGRID     : ${grid}
  SCF MaxIter : ${max_iter}
  Cores       : ${cpus}
