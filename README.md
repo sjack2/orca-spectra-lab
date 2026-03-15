@@ -458,6 +458,35 @@ or_ecd_uvvis_tools.py [OPTIONS] LOGS [LOGS ...]
 
 **Output:** `<TAG>/06_spectra/<TAG>_uvvis.png/.pdf/.csv`, `<TAG>/06_spectra/<TAG>_ecd.png/.pdf/.csv`
 
+**Examples:**
+
+```bash
+# Single functional -- Boltzmann-weighted ECD for ephedrine
+python3 or_ecd_uvvis_tools.py ephedrine/05_ecd \
+    --bw ephedrine/04_boltzmann/ephedrine_energies.dat \
+    --outdir ephedrine --stick --xlim 190 350
+
+# Single functional -- UV-Vis benchmark for PNA with long-to-short axis
+python3 or_ecd_uvvis_tools.py pna/05_ecd \
+    --bw pna/04_boltzmann/pna_energies.dat \
+    --outdir pna --stick --flip_x --xlim 200 500
+```
+
+The `**` recursive glob requires **bash >= 4.0** with `globstar` enabled (`shopt -s globstar`).
+Most Linux/HPC systems meet this requirement. macOS ships bash 3.2 by default -- use
+`brew install bash` or zsh (where globstar is on by default).
+
+```bash
+# Recursive glob -- collect all logs under 05_ecd/ regardless of subdirectory depth;
+# use --prefix to name the output files explicitly
+shopt -s globstar   # bash only; omit in zsh
+python3 or_ecd_uvvis_tools.py pna/05_ecd/**/*.log \
+    --bw pna/04_boltzmann/pna_energies.dat \
+    --prefix pna/06_spectra/pna_wb97xd3_cpcm \
+    --title "PNA / wB97X-D3 / def2-TZVP / CPCM(water)" \
+    --flip_x --xlim 200 500
+```
+
 ### or_vcd_ir_tools.py -- Vibrational Spectral Broadening & Plotting
 
 ```
@@ -486,15 +515,30 @@ or_vcd_ir_tools.py [OPTIONS] LOGS [LOGS ...]
 **Examples:**
 
 ```bash
-# Boltzmann-weighted IR/VCD for methyloxirane
+# Single functional -- Boltzmann-weighted IR/VCD for methyloxirane
 python3 or_vcd_ir_tools.py methyloxirane/05_vcd \
     --bw methyloxirane/04_boltzmann/methyloxirane_energies.dat \
     --outdir methyloxirane --stick --xlim 800 3200
 
-# Compare computed VCD to experiment with adjusted broadening
+# Single functional -- adjusted broadening for comparison with experiment
 python3 or_vcd_ir_tools.py ephedrine/05_vcd \
     --bw ephedrine/04_boltzmann/ephedrine_energies.dat \
     --outdir ephedrine --vcd_fwhm 8 --ir_fwhm 12
+```
+
+The `**` recursive glob requires **bash >= 4.0** with `globstar` enabled (`shopt -s globstar`).
+Most Linux/HPC systems meet this requirement. macOS ships bash 3.2 by default -- use
+`brew install bash` or zsh (where globstar is on by default).
+
+```bash
+# Recursive glob -- collect all logs under 05_vcd/ regardless of subdirectory depth;
+# use --prefix to name the output files explicitly
+shopt -s globstar   # bash only; omit in zsh
+python3 or_vcd_ir_tools.py methyloxirane/05_vcd/**/*.log \
+    --bw methyloxirane/04_boltzmann/methyloxirane_energies.dat \
+    --prefix methyloxirane/06_spectra/methyloxirane_b3lyp_cpcm \
+    --title "methyloxirane / B3LYP / def2-TZVP / CPCM(water)" \
+    --stick --xlim 800 3200
 ```
 
 ---
@@ -646,6 +690,16 @@ The scripts resolve the binary in this order: `--orca-bin` flag, then `ORCA_BIN`
 **Empty Boltzmann output:** All conformers fell below `--p-cut`. Lower the threshold (e.g., `--p-cut 0.001`) or check that Stage 4 completed successfully for all conformers.
 
 **Plotting tool import errors:** Install Python dependencies: `pip install -r requirements.txt`
+
+**CREST fails with a shared library error on HPC** (e.g., `version 'GLIBCXX_3.4.XX' not found`): The CREST binary was compiled against a newer libgcc/libgomp than the cluster's system provides. Create a minimal conda environment to supply the missing libraries, then activate it before submitting the Stage 2b job:
+
+```bash
+conda create -n xtb_rt -c conda-forge libgcc libgomp libgfortran
+conda activate xtb_rt
+bash 2b-crest-conf-search.sh TAG
+```
+
+The SLURM job inherits the activated environment's LD_LIBRARY_PATH, so no changes to the batch script are needed. See [INSTALL.md](INSTALL.md) Section 6 for full setup details.
 
 **VCD frequency job runs slowly:** Analytic Hessian calculations scale more steeply than single-point energies. Use `--dry-run` first to check conformer count, and reduce cores only if memory is the bottleneck. B3LYP is recommended over range-separated hybrids for frequency calculations.
 

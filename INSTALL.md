@@ -268,6 +268,41 @@ conda install -c conda-forge crest
 crest --version
 ```
 
+### Runtime libraries on HPC
+
+On some HPC clusters the system's default libgcc and libgomp are older than
+what the CREST binary was compiled against.  The symptom is an error like
+`version 'GLIBCXX_3.4.XX' not found` when you run `crest --version`.
+
+The cleanest fix is a minimal conda environment that supplies up-to-date
+runtime libraries without installing CREST itself through conda:
+
+```bash
+conda create -n xtb_rt -c conda-forge libgcc libgomp libgfortran
+conda activate xtb_rt
+```
+
+Place the CREST binary somewhere on your PATH, for example `~/opt/bin/`:
+
+```bash
+mkdir -p ~/opt/bin
+cp crest ~/opt/bin/crest
+chmod +x ~/opt/bin/crest
+echo 'export PATH=$HOME/opt/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Activate the environment before submitting any SLURM job that calls CREST:
+
+```bash
+conda activate xtb_rt
+bash 2b-crest-conf-search.sh TAG
+```
+
+The SLURM job inherits the submitting shell's PATH and LD_LIBRARY_PATH, so
+`crest` remains findable on the compute node without any extra module
+commands in the batch script.
+
 ---
 
 ## 7. Windows Users: Installing WSL
@@ -364,14 +399,21 @@ CREST is often available as a module:
 module load apps/crest/3.0
 ```
 
-If not, download the static binary and place it in your `$HOME/bin`:
+If not, download the static binary and place it in your `$HOME/bin`
+(or `$HOME/opt/bin/` -- any directory on your PATH):
 
 ```bash
-mkdir -p $HOME/bin
-wget -O $HOME/bin/crest https://github.com/crest-lab/crest/releases/download/v3.0.2/crest
-chmod +x $HOME/bin/crest
-export PATH=$HOME/bin:$PATH
+mkdir -p $HOME/opt/bin
+wget -O $HOME/opt/bin/crest https://github.com/crest-lab/crest/releases/download/v3.0.2/crest-gnu-12-ubuntu-latest.tar.xz
+tar -xf crest-gnu-12-ubuntu-latest.tar.xz
+mv crest $HOME/opt/bin/crest
+chmod +x $HOME/opt/bin/crest
+export PATH=$HOME/opt/bin:$PATH
 ```
+
+If the cluster's system libraries are too old for the binary (a
+`GLIBCXX version not found` error), see the "Runtime libraries on HPC"
+subsection in Section 6 above for the conda-based fix.
 
 ---
 
